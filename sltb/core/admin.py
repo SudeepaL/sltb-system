@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Bus, Driver, Conductor, Route, Stop, Schedule
+from .models import Bus, Driver, Conductor, Route, Stop, RouteStop, Schedule
 
 
 @admin.register(Bus)
@@ -25,8 +25,11 @@ class RouteAdmin(admin.ModelAdmin):
 
 @admin.register(Stop)
 class StopAdmin(admin.ModelAdmin):
-    list_display = ('stop_name', 'route', 'order')
+    list_display = ('stop_name', 'latitude', 'longitude')
 
+@admin.register(RouteStop)
+class RouteStopAdmin(admin.ModelAdmin):
+    list_display = ('route', 'stop', 'order')
 
 @admin.register(Schedule)
 class ScheduleAdmin(admin.ModelAdmin):

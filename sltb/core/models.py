@@ -112,17 +112,29 @@ class Route(models.Model):
 
     def __str__(self):
         return self.route_number
-    
+        
 #Stop class: 
 class Stop(models.Model):
-    route = models.ForeignKey(Route, on_delete=models.CASCADE)
+    #route = models.ForeignKey(Route, on_delete=models.CASCADE)
     stop_name = models.CharField(max_length=100)
     latitude = models.FloatField()
     longitude = models.FloatField()
-    order = models.PositiveBigIntegerField()
+    #order = models.PositiveBigIntegerField()
 
     def __str__(self):
-        return f"{self.stop_name} ({self.route.route_number})"
+        return self.stop_name
+
+#Route stop class (since one stop has many route numbers)
+class RouteStop(models.Model):
+    route = models.ForeignKey('Route', on_delete=models.CASCADE)
+    stop = models.ForeignKey('Stop', on_delete=models.CASCADE)
+    order = models.PositiveIntegerField()
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return f"{self.route.route_number} - {self.stop.stop_name}"
 
 #Schedule class:
 class Schedule(models.Model):
