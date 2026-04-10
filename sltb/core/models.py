@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 
 #Driver model:
 class Driver(models.Model):
@@ -135,18 +136,127 @@ class RouteStop(models.Model):
 
     def __str__(self):
         return f"{self.route.route_number} - {self.stop.stop_name}"
-
-#Schedule class:
-class Schedule(models.Model):
-    route = models.ForeignKey(Route, on_delete=models.CASCADE)
-    bus = models.ForeignKey('Bus', on_delete=models.CASCADE)
-    driver = models.ForeignKey('Driver', on_delete=models.CASCADE)
-    depature_time = models.TimeField()
+    
+#Timetable class
+class TimeTable(models.Model):
+    route = models.ForeignKey('Route', on_delete=models.CASCADE)
+    departure_time = models.TimeField()
     arrival_time = models.TimeField()
-    date = models.DateField()
+
+    DAY_CHOICES = [
+        ('daily', 'Daily'),
+        ('monday', 'Monday'),
+        ('tuesday', 'Tuesday'),
+        ('wednesday', 'Wednesday'),
+        ('thursday', 'Thursday'),
+        ('friday', 'Friday'),
+        ('saturday', 'Saturday'),
+        ('sunday', 'Sunday'),
+    ]
+
+    day_of_week = models.CharField(max_length=10, choices=DAY_CHOICES, default='daily')
+
+    DIRECTION_CHOICES = [
+        ('OUTBOUND', 'Outbound'),
+        ('RETURN', 'Return'),
+    ]
+
+    direction = models.CharField(max_length=10, choices=DIRECTION_CHOICES)
 
     def __str__(self):
-        return f"{self.route.route_number} - {self.date}"
+        return f"{self.route} - {self.departure_time} ({self.direction})"
+    
+#Schedule class:
+class Schedule(models.Model):
+    timetable = models.ForeignKey('TimeTable', on_delete=models.CASCADE)
+    bus = models.ForeignKey('Bus', on_delete=models.CASCADE)
+    driver = models.ForeignKey('Driver', on_delete=models.CASCADE, null=True, blank=True)
+    conductor = models.ForeignKey('Conductor', on_delete=models.CASCADE, null=True, blank=True)
+    date = models.DateField()
+
+    S_STATUS_CHOICES = [
+        ('SCHEDULED', 'Scheduled'),
+        ('COMPLETED', 'Completed'),
+        ('CANCELLED', 'Cancelled'), 
+    ]
+    
+    status = models.CharField(max_length=20, choices=S_STATUS_CHOICES, default='SCHEDULED')
+
+    def __str__(self):
+        return f"{self.timetable} - {self.date}"
+    
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+        #auto assgning same driver conductor for return trips 
+        if self.timetable.direction == 'RETURN':
+            outbound = Schedule.objects.filter(
+                timetable__route=self.timetable.route,
+                timetable__direction='OUTBOUND',
+                date=self.date
+            ).first()
+
+            if outbound:
+                self.driver = outbound.driver
+                self.conductor = outbound.conductor
+                super().save(update_fields=['driver' , 'conductor'])
+    
+#Trip class: 
+class Trip(models.Model):
+    schedule = models.OneToOneField('Schedule', on_delete=models.CASCADE)
+    return_trip = models.OneToOneField(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='outbound_trip'
+    )
+    
+    T_STATUS_CHOICES = [
+        ('NOT_STARTED', 'Not Started'),
+        ('ONGOING', 'Ongoing'),
+        ('DELAYED', 'Delayed'),
+        ('COMPLETED', 'Completed'),
+    ]
+
+    t_status = models.CharField(max_length=20, choices=T_STATUS_CHOICES, default='NOT_STARTED')
+    actual_departure_time = models.DateTimeField(null=True, blank=True)
+    actual_arrival_time = models.DateTimeField(null=True, blank=True)
+    delay_reason = models.TextField(null=True, blank=True)
+
+    def start_trip(self):
+        self.t_status = 'ONGOING'
+        self.actual_departure_time = timezone.now()
+
+        #If driver or conductor busy:
+        self.schedule.driver.driver_status = 'ON_ROUTE'
+        self.schedule.driver.save()
+        self.schedule.conductor.conductor_status = 'ON_DUTY'
+        self.schedule.conductor.save()
+
+        self.save()
+
+    def delay_trip(self, reason):
+        self.t_status = 'DELAYED'
+        self.delay_reason = reason
+        self.save()
+
+    def complete_trip(self):
+        self.t_status = 'COMPLETED'
+        self.actual_arrival_time = timezone.now()
+
+        #Only available if there is no return trip: 
+        if not self.return_trip:
+            self.schedule.driver.driver_status = 'AVAILABLE'
+            self.schedule.driver.save()
+
+            self.schedule.conductor.conductor_status = 'AVAILABLE'
+            self.schedule.conductor.save()
+
+        self.save()
+
+    def __str__(self):
+        return f"{self.schedule} - {self.t_status}"
 
 
 

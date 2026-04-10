@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Bus, Driver, Conductor, Route, Stop, RouteStop, Schedule
+from .models import Bus, Driver, Conductor, Route, Stop, RouteStop, Schedule, TimeTable, Trip
 
 
 @admin.register(Bus)
@@ -33,7 +33,14 @@ class RouteStopAdmin(admin.ModelAdmin):
 
 @admin.register(Schedule)
 class ScheduleAdmin(admin.ModelAdmin):
-    list_display = ('route', 'bus', 'driver', 'date', 'depature_time')
+    list_display = ('timetable', 'bus', 'driver', 'conductor', 'date', 'status')
 
+@admin.register(TimeTable)
+class TimeTableAdmin(admin.ModelAdmin):
+    list_display = ('route', 'departure_time', 'direction', 'day_of_week')
+
+@admin.register(Trip)
+class TripAdmin(admin.ModelAdmin):
+    list_display = ('schedule', 't_status', 'actual_departure_time')
 
 # Register your models here.
