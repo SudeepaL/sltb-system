@@ -1,6 +1,5 @@
 from django.contrib import admin
-from .models import Bus, Driver, Conductor, Route, Stop, RouteStop, Schedule, TimeTable, Trip
-
+from .models import Bus, Driver, Conductor, Route, Stop, RouteStop, Schedule, TimeTable, Trip, StaffAttendance
 
 @admin.register(Bus)
 class BusAdmin(admin.ModelAdmin):
@@ -42,5 +41,10 @@ class TimeTableAdmin(admin.ModelAdmin):
 @admin.register(Trip)
 class TripAdmin(admin.ModelAdmin):
     list_display = ('schedule', 't_status', 'actual_departure_time')
+
+@admin.register(StaffAttendance)
+class StaffAttendanceAdmin(admin.ModelAdmin):
+    list_display = ('staff_type', 'staff_name', 'status', 'clock_in_time', 'clock_out_time', 'updated_at')
+    readonly_fields = ('clock_in_time', 'clock_out_time', 'updated_at')
 
 # Register your models here.

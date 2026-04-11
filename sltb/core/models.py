@@ -257,6 +257,67 @@ class Trip(models.Model):
 
     def __str__(self):
         return f"{self.schedule} - {self.t_status}"
+    
+#Attendence module 
+class StaffAttendance(models.Model):
+    ATTENDANCE_STATUS_CHOICES = [
+        ('AVAILABLE', 'Available'),
+        ('OFF_DUTY', 'Off Duty'),
+    ]
+
+    driver = models.OneToOneField('Driver', on_delete=models.CASCADE, null=True, blank=True)
+    conductor = models.OneToOneField('Conductor', on_delete=models.CASCADE, null=True, blank=True)
+    status = models.CharField(max_length=20, choices=ATTENDANCE_STATUS_CHOICES, default='OFF_DUTY')
+    clock_in_time = models.DateTimeField(null=True, blank=True)
+    clock_out_time = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    (models.Q(driver__isnull=False) & models.Q(conductor__isnull=True))
+                    | (models.Q(driver__isnull=True) & models.Q(conductor__isnull=False))
+                ),
+                name='attendance_has_exactly_one_staff_member',
+            ),
+        ]
+
+    @property
+    def staff_name(self):
+        return self.driver.driver_name if self.driver else self.conductor.conductor_name
+
+    @property
+    def staff_type(self):
+        return 'Driver' if self.driver else 'Conductor'
+
+    def mark_available(self):
+        now = timezone.now()
+        self.status = 'AVAILABLE'
+        self.clock_in_time = now
+        self.clock_out_time = None
+        if self.driver:
+            self.driver.driver_status = 'AVAILABLE'
+            self.driver.save(update_fields=['driver_status'])
+        if self.conductor:
+            self.conductor.conductor_status = 'AVAILABLE'
+            self.conductor.save(update_fields=['conductor_status'])
+        self.save(update_fields=['status', 'clock_in_time', 'clock_out_time', 'updated_at'])
+
+    def mark_off_duty(self):
+        now = timezone.now()
+        self.status = 'OFF_DUTY'
+        self.clock_out_time = now
+        if self.driver:
+            self.driver.driver_status = 'OFF_DUTY'
+            self.driver.save(update_fields=['driver_status'])
+        if self.conductor:
+            self.conductor.conductor_status = 'OFF_DUTY'
+            self.conductor.save(update_fields=['conductor_status'])
+        self.save(update_fields=['status', 'clock_out_time', 'updated_at'])
+
+    def __str__(self):
+        return f"{self.staff_type}: {self.staff_name} ({self.status})"
 
 
 
