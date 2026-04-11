@@ -25,7 +25,7 @@ class Driver(models.Model):
     driver_status = models.CharField(
         max_length=20,
         choices=DRIVER_STATUS_CHOICES,
-        default='AVAILABLE'
+        default='OFF_DUTY'
     )
     driver_registration_date = models.DateField()
     driver_id_image = models.ImageField(
@@ -94,6 +94,8 @@ class Bus(models.Model):
     bus_type = models.CharField(max_length=10, choices=BUS_TYPE_CHOICES)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
     depot = models.CharField(max_length=50)
+    current_fuel_liters = models.FloatField(default=0)
+    fuel_efficiency_km_per_liter = models.FloatField(default=4.0)
     image = models.ImageField(upload_to='bus_images/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -103,6 +105,37 @@ class Bus(models.Model):
     def __str__(self):
         return f"{self.bus_code} ({self.bus_number})"
     
+    @classmethod
+    def refuel_by_bus_code(cls, bus_code, filled_liters):
+        bus = cls.objects.get(bus_code=bus_code)
+        bus.add_fuel(filled_liters)
+        return bus
+
+    def add_fuel(self, filled_liters):
+        if filled_liters <= 0:
+            raise ValueError("Fuel amount must be greater than zero.")
+        self.current_fuel_liters += filled_liters
+        self.save(update_fields=['current_fuel_liters'])
+        FuelTransaction.objects.create(
+            bus=self,
+            transaction_type='FILL',
+            amount_liters=filled_liters
+        )
+
+    def burn_fuel_for_distance(self, distance_km):
+        if not distance_km or distance_km <= 0:
+            return 0
+
+        burned_liters = distance_km / self.fuel_efficiency_km_per_liter
+        self.current_fuel_liters = max(0, self.current_fuel_liters - burned_liters)
+        self.save(update_fields=['current_fuel_liters'])
+        FuelTransaction.objects.create(
+            bus=self,
+            transaction_type='BURN',
+            amount_liters=burned_liters
+        )
+        return burned_liters
+       
 #Route class:
 class Route(models.Model):
     route_number = models.CharField(max_length=10)
@@ -244,6 +277,7 @@ class Trip(models.Model):
     def complete_trip(self):
         self.t_status = 'COMPLETED'
         self.actual_arrival_time = timezone.now()
+        self.schedule.bus.burn_fuel_for_distance(self.schedule.timetable.route.distance)
 
         #Only available if there is no return trip: 
         if not self.return_trip:
@@ -257,6 +291,24 @@ class Trip(models.Model):
 
     def __str__(self):
         return f"{self.schedule} - {self.t_status}"
+    
+#Fule module: 
+class FuelTransaction(models.Model):
+    TRANSACTION_CHOICES = [
+        ('FILL', 'Filled'),
+        ('BURN', 'Burned'),
+    ]
+
+    bus = models.ForeignKey('Bus', on_delete=models.CASCADE, related_name='fuel_transactions')
+    transaction_type = models.CharField(max_length=10, choices=TRANSACTION_CHOICES)
+    amount_liters = models.FloatField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.bus.bus_code} - {self.transaction_type} - {self.amount_liters:.2f}L"
     
 #Attendence module 
 class StaffAttendance(models.Model):
@@ -318,6 +370,22 @@ class StaffAttendance(models.Model):
 
     def __str__(self):
         return f"{self.staff_type}: {self.staff_name} ({self.status})"
+    
+#Bus maintenance module
+class BusMaintenance(models.Model):
+    bus = models.ForeignKey('Bus', on_delete=models.CASCADE, related_name='maintenance_records')
+    service_date = models.DateField(default=timezone.now)
+    mileage = models.PositiveIntegerField(help_text='Current mileage at the time of service')
+    service_history = models.TextField(help_text='Summary of service history / issue reported')
+    maintenance_details = models.TextField(help_text='Maintenance work completed for this service')
+    next_service_due_mileage = models.PositiveIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-service_date', '-created_at']
+
+    def __str__(self):
+        return f"{self.bus.bus_code} maintenance on {self.service_date}"
 
 
 
