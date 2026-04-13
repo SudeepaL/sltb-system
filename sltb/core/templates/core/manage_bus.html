@@ -1,0 +1,24 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage {{ bus.bus_code }}</title>
+    <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
+</head>
+<body>
+<main class="manage-page">
+    <h1>Manage Bus: {{ bus.bus_code }}</h1>
+    <form method="post" enctype="multipart/form-data" class="manage-form">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <div class="manage-actions">
+            <button type="submit" class="manage-btn">Save Changes</button>
+            <button type="submit" name="delete_bus" value="1" class="delete-btn" onclick="return confirm('Delete this bus?');">Delete Bus</button>
+            <a href="{% url 'bus_dashboard' %}?bus={{ bus.id }}" class="module-btn">Back</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>

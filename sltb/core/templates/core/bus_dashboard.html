@@ -1,0 +1,94 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bus Module Dashboard</title>
+    <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
+</head>
+<body>
+<header class="top-area">
+    <nav class="module-nav">
+        <img src="{% static 'core/logo.jpg' %}" alt="SLTB Logo" class="logo">
+        <div class="module-buttons">
+            {% for label in module_buttons %}
+                <button type="button" class="module-btn {% if label == 'Buses' %}active{% endif %}">{{ label }}</button>
+            {% endfor %}
+        </div>
+    </nav>
+</header>
+
+<main class="dashboard-grid">
+    <section class="bus-table-panel">
+        <table>
+            <thead>
+                <tr>
+                    <th>Bus Code</th>
+                    <th>Current Status</th>
+                    <th>Current Route</th>
+                    <th>Driver</th>
+                    <th>Conductor</th>
+                    <th>Last Updated</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in bus_rows %}
+                <tr>
+                    <td>
+                        <a href="?bus={{ row.bus.id }}" class="bus-code-link">{{ row.bus.bus_code }}</a>
+                    </td>
+                    <td>{{ row.bus.get_status_display }}</td>
+                    <td>{{ row.current_route }}</td>
+                    <td>{{ row.driver_name }}</td>
+                    <td>{{ row.conductor_name }}</td>
+                    <td>--</td>
+                    <td>
+                        <a class="manage-inline" href="{% url 'manage_bus' row.bus.id %}">Manage</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7">No buses saved in the system.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <aside class="details-panel">
+        <h2>Bus Details</h2>
+        {% if selected_bus %}
+            {% if selected_bus.image %}
+                <img src="{{ selected_bus.image.url }}" alt="{{ selected_bus.bus_code }}" class="bus-photo">
+            {% else %}
+                <div class="bus-photo placeholder">No bus image</div>
+            {% endif %}
+            <dl>
+                <dt>Bus Number:</dt><dd>{{ selected_bus.bus_number }}</dd>
+                <dt>Bus Code:</dt><dd>{{ selected_bus.bus_code }}</dd>
+                <dt>Bus Model:</dt><dd>{{ selected_bus.model|default:'-' }}</dd>
+                <dt>Type:</dt><dd>{{ selected_bus.get_bus_type_display }}</dd>
+                <dt>Fuel Capacity:</dt><dd>-</dd>
+                <dt>Current Fuel:</dt><dd>{{ selected_bus.current_fuel_liters }} L</dd>
+                <dt>Seat Capacity:</dt><dd>{{ selected_bus.capacity }}</dd>
+                <dt>Bus Status:</dt><dd>{{ selected_bus.get_status_display }}</dd>
+                <dt>Depot:</dt><dd>{{ selected_bus.depot }}</dd>
+                <dt>Fuel Efficiency:</dt><dd>{{ selected_bus.fuel_efficiency_km_per_liter }} km/L</dd>
+            </dl>
+            <a href="{% url 'manage_bus' selected_bus.id %}" class="manage-btn">Manage Bus</a>
+        {% else %}
+            <p>Select a bus code to view details.</p>
+        {% endif %}
+    </aside>
+</main>
+
+<footer class="summary-row">
+    <span>Total buses: <strong>{{ total_buses }}</strong></span>
+    <span>Available Buses: <strong>{{ available_buses }}</strong></span>
+    <span>Buses On Route: <strong>{{ on_route_buses }}</strong></span>
+    <span>Buses under maintenance: <strong>{{ maintenance_buses }}</strong></span>
+</footer>
+</body>
+</html>
