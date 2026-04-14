@@ -1,5 +1,6 @@
 from django import forms
-from .models import Bus, Conductor, Driver
+from .models import Bus, Conductor, Driver, Route
+
 
 class BusForm(forms.ModelForm):
     class Meta:
@@ -16,6 +17,7 @@ class BusForm(forms.ModelForm):
             'fuel_efficiency_km_per_liter',
             'image',
         ]
+
 
 class DriverForm(forms.ModelForm):
     class Meta:
@@ -48,4 +50,17 @@ class ConductorForm(forms.ModelForm):
             'conductor_status',
             'conductor_registration_date',
             'conductor_id_image',
+        
         ]
+
+
+class RouteForm(forms.ModelForm):
+    class Meta:
+        model = Route
+        fields = [
+            'route_number',
+            'start_location',
+            'end_location',
+            'distance',
+            'estimated_duration',
+        ]       

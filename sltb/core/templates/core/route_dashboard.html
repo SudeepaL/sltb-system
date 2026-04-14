@@ -26,7 +26,7 @@
         <table class="table table-hover align-middle mb-0">
             <thead>
                 <tr>
-                    <th>Route number</th>
+                    <th>Route Number</th>
                     <th>Terminus (Start)</th>
                     <th>Terminus (End)</th>
                     <th>Distance (KM)</th>
@@ -49,17 +49,25 @@
                 {% endfor %}
             </tbody>
         </table>
+         <div class="table-footer">
+            <a href="{% url 'add_route' %}" class="manage-btn">Add a Route</a>
+        </div>
     </section>
 </main>
 
 <script>
     document.querySelectorAll('.route-row').forEach((row) => {
+        const link = row.querySelector('.bus-code-link');
+
         row.addEventListener('click', (event) => {
             if (event.target.tagName.toLowerCase() === 'a') {
                 return;
             }
             window.location.href = row.dataset.href;
         });
+
+        link.addEventListener('mouseenter', () => row.classList.add('hover-row'));
+        link.addEventListener('mouseleave', () => row.classList.remove('hover-row'));
     });
 </script>
 </body>

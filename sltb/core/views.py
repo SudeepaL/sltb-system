@@ -1,6 +1,6 @@
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from .forms import BusForm, ConductorForm, DriverForm
+from .forms import BusForm, ConductorForm, DriverForm, RouteForm
 from .models import Bus, Conductor, Driver, Route, RouteStop, Stop, Trip
 
 def _module_buttons(active_module):
@@ -349,6 +349,21 @@ def route_dashboard(request):
         'module_buttons': _module_buttons('manage_routes'),
     }
     return render(request, 'core/route_dashboard.html', context)
+
+def add_route(request):
+    if request.method == 'POST':
+        form = RouteForm(request.POST)
+        if form.is_valid():
+            created_route = form.save()
+            return redirect('manage_route_stops', route_id=created_route.id)
+    else:
+        form = RouteForm()
+
+    return render(
+        request,
+        'core/add_route.html',
+        {'form': form, 'module_buttons': _module_buttons('manage_routes')},
+    )
 
 
 def manage_route_stops(request, route_id):

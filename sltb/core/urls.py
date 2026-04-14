@@ -7,6 +7,7 @@ urlpatterns = [
     path('drivers/', views.driver_dashboard, name='driver_dashboard'),
     path('conductors/', views.conductor_dashboard, name='conductor_dashboard'),
     path('routes/', views.route_dashboard, name='route_dashboard'),
+    path('routes/add/', views.add_route, name='add_route'),
     path('routes/<int:route_id>/stops/', views.manage_route_stops, name='manage_route_stops'),
     path('buses/add/', views.add_bus, name='add_bus'),
     path('buses/<int:bus_id>/manage/', views.manage_bus, name='manage_bus'),

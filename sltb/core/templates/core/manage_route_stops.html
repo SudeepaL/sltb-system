@@ -14,18 +14,31 @@
             align-items: center;
             margin-bottom: 10px;
         }
+
         .route-stops-header h2 {
             margin: 0;
             font-size: 38px;
             font-weight: 700;
         }
+
         .drop-target {
             background: #e7f0ff;
             outline: 2px dashed #0a4db2;
         }
+
         .selected-row {
-            background-color: #ffe6e6 !important;
+            background-color: #e8edf6 !important;
+            transform: scale(1.02);
         }
+
+        #routeStopsTbody tr.selected-row td:first-child {
+            border-radius: 6px 0 0 6px;
+        }
+
+        #routeStopsTbody tr.selected-row td:last-child {
+            border-radius: 0 6px 6px 0;
+        }
+
         .confirmation-panel {
             margin: 12px 0;
             padding: 12px;
@@ -37,9 +50,22 @@
             justify-content: space-between;
             gap: 10px;
         }
+
         .confirmation-actions {
             display: flex;
             gap: 10px;
+        }
+
+           .route-stop-actions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .route-stop-actions .form-select {
+            width: 260px;
         }
     </style>
 </head>
@@ -59,24 +85,7 @@
     <section class="bus-table-panel shadow-sm" style="max-height: none;">
         <div class="route-stops-header">
             <h2>Route Stops for route number: {{ route.route_number }}</h2>
-            <div class="d-flex gap-2">
-                <select id="stopSelector" class="form-select" style="width: 260px;">
-                    <option value="">Add a stop</option>
-                    {% for stop in all_stops %}
-                        <option value="{{ stop.id }}" data-name="{{ stop.stop_name }}" data-lat="{{ stop.latitude }}" data-lng="{{ stop.longitude }}">{{ stop.stop_name }}</option>
-                    {% endfor %}
-                </select>
-                <button type="button" id="deleteStopBtn" class="delete-btn">Delete selected stop</button>
             </div>
-        </div>
-
-        <div class="confirmation-panel" id="confirmationPanel">
-            <span><strong>Are you sure to save the changes</strong></span>
-            <div class="confirmation-actions">
-                <button type="button" id="saveChangesBtn" class="manage-btn">Save</button>
-                <button type="button" id="revertChangesBtn" class="delete-btn">Revert changes</button>
-            </div>
-        </div>
 
         <table class="table table-hover align-middle mb-0" id="routeStopsTable">
             <thead>
@@ -100,6 +109,27 @@
                 {% endfor %}
             </tbody>
         </table>
+
+        <div class="confirmation-panel" id="confirmationPanel">
+            <span><strong>Are you sure to save the changes</strong></span>
+            <div class="confirmation-actions">
+                <button type="button" id="saveChangesBtn" class="manage-btn">Save</button>
+                <button type="button" id="revertChangesBtn" class="delete-btn">Revert changes</button>
+            </div>
+        </div>
+
+        <div class="table-footer">
+            <div class="route-stop-actions">
+                <select id="stopSelector" class="form-select">
+                    <option value="">Add a stop</option>
+                    {% for stop in all_stops %}
+                        <option value="{{ stop.id }}" data-name="{{ stop.stop_name }}" data-lat="{{ stop.latitude }}" data-lng="{{ stop.longitude }}">{{ stop.stop_name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="button" id="deleteStopBtn" class="delete-btn">Delete selected stop</button>
+                <a href="{% url 'route_dashboard' %}" class="module-btn" style="background:#0a4db2;">Back to Routes</a>
+            </div>
+        </div>
 
         <form method="post" id="saveForm" class="mt-3">
             {% csrf_token %}
