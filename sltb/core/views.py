@@ -1,14 +1,14 @@
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from .forms import BusForm, ConductorForm, DriverForm
-from .models import Bus, Conductor, Driver, Trip
+from .models import Bus, Conductor, Driver, Route, RouteStop, Stop, Trip
 
 def _module_buttons(active_module):
     items = [
         {'label': 'Buses', 'url': reverse('bus_dashboard'), 'key': 'buses'},
         {'label': 'Drivers', 'url': reverse('driver_dashboard'), 'key': 'drivers'},
         {'label': 'Conductors', 'url': reverse('conductor_dashboard'), 'key': 'conductors'},
-        {'label': 'Manage Routes', 'url': '#', 'key': 'manage_routes'},
+        {'label': 'Manage Routes', 'url': reverse('route_dashboard'), 'key': 'manage_routes'},
         {'label': 'Scheduling', 'url': '#', 'key': 'scheduling'},
         {'label': 'Fuel Usage', 'url': '#', 'key': 'fuel_usage'},
         {'label': 'Maintenance', 'url': '#', 'key': 'maintenance'},
@@ -340,3 +340,42 @@ def add_conductor(request):
         'core/add_conductor.html',
         {'form': form, 'module_buttons': _module_buttons('conductors')},
     )
+
+
+def route_dashboard(request):
+    routes = Route.objects.order_by('route_number')
+    context = {
+        'routes': routes,
+        'module_buttons': _module_buttons('manage_routes'),
+    }
+    return render(request, 'core/route_dashboard.html', context)
+
+
+def manage_route_stops(request, route_id):
+    route = get_object_or_404(Route, id=route_id)
+
+    if request.method == 'POST':
+        stop_id_list = request.POST.getlist('ordered_stop_ids')
+
+        RouteStop.objects.filter(route=route).delete()
+        route_stops_to_create = []
+        for index, stop_id in enumerate(stop_id_list, start=1):
+            stop = Stop.objects.filter(id=stop_id).first()
+            if stop:
+                route_stops_to_create.append(RouteStop(route=route, stop=stop, order=index))
+        RouteStop.objects.bulk_create(route_stops_to_create)
+        return redirect('manage_route_stops', route_id=route.id)
+
+    route_stops = (
+        RouteStop.objects.select_related('stop')
+        .filter(route=route)
+        .order_by('order')
+    )
+
+    context = {
+        'route': route,
+        'route_stops': route_stops,
+        'all_stops': Stop.objects.order_by('stop_name'),
+        'module_buttons': _module_buttons('manage_routes'),
+    }
+    return render(request, 'core/manage_route_stops.html', context)
