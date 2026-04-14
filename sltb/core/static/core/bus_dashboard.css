@@ -86,6 +86,7 @@ body {
   max-height: 700px;
   display: flex;
   flex-direction: column;
+  padding: 0 20px;
 }
 
 .panel-title {
@@ -100,13 +101,17 @@ body {
 
 table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 20px;
 }
 th, td {
-  border: 1px solid #d8d8d8;
+  border-top: 1px solid #d8d8d8;
+  border-bottom: 1px solid #d8d8d8;
+  border-left: none;
+  border-right: none;
   text-align: left;
-  padding: 14px 18px;
+  padding: 10px 16px;
   vertical-align: top;
 }
 
@@ -118,13 +123,30 @@ thead th {
 .bus-code-link { text-decoration: none; }
 
 .bus-table-panel tbody tr {
-  transition: background-color 0.22s ease, transform 0.22s ease;
+  transition: background-color 0.22s ease, transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .bus-table-panel tbody tr.hover-row,
-.bus-table-panel tbody tr:hover,
+.bus-table-panel tbody tr:hover {
+  background-color: #e0e0e0;
+  transform: scale(1.02);
+}
+
+.bus-table-panel tbody tr.hover-row td:first-child,
+.bus-table-panel tbody tr:hover td:first-child,
+.bus-table-panel tbody tr.active-row td:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.bus-table-panel tbody tr.hover-row td:last-child,
+.bus-table-panel tbody tr:hover td:last-child,
+.bus-table-panel tbody tr.active-row td:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
 .bus-table-panel tbody tr.active-row {
-  background-color: #dce9ff;
+  background-color: #e8edf6;
+  transform: scale(1.02);
 }
 
 .table-footer {
@@ -136,7 +158,12 @@ thead th {
 }
 
 .details-panel {
-  padding: 14px 16px;
+  padding: 0 16px 14px;
+}
+
+.details-panel .panel-title {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 .details-animated {
@@ -157,7 +184,8 @@ thead th {
 .bus-photo {
   width: 100%;
   max-height: 240px;
-  object-fit: cover;
+  object-fit: contain;
+  background: #f5f5f5;
   border: 1px solid #d0d0d0;
   border-radius: 8px;
 }
@@ -188,8 +216,24 @@ dd { margin: 0; font-weight: 700; }
   font-weight: 700;
   cursor: pointer;
 }
-.manage-btn { background: #1d5dc5; }
-.delete-btn { background: #b41919; }
+.manage-btn {
+  background: #1d5dc5;
+  transition: transform 0.25s ease, background-color 0.3s ease;
+}
+.manage-btn:hover,
+.manage-btn:focus-visible {
+  transform: scale(1.07);
+  background: #c0160c;
+}
+.delete-btn {
+  background: #b41919;
+  transition: transform 0.25s ease, background-color 0.3s ease;
+}
+.delete-btn:hover,
+.delete-btn:focus-visible {
+  transform: scale(1.07);
+  background: #c0160c;
+}
 
 .summary-row {
   display: flex;
