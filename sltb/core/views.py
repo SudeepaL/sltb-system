@@ -8,6 +8,7 @@ def _module_buttons(active_module):
         {'label': 'Buses', 'url': reverse('bus_dashboard'), 'key': 'buses'},
         {'label': 'Drivers', 'url': reverse('driver_dashboard'), 'key': 'drivers'},
         {'label': 'Conductors', 'url': reverse('conductor_dashboard'), 'key': 'conductors'},
+        {'label': 'Manage Routes', 'url': '#', 'key': 'manage_routes'},
         {'label': 'Scheduling', 'url': '#', 'key': 'scheduling'},
         {'label': 'Fuel Usage', 'url': '#', 'key': 'fuel_usage'},
         {'label': 'Maintenance', 'url': '#', 'key': 'maintenance'},
