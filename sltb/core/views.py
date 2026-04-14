@@ -3,6 +3,17 @@ from django.urls import reverse
 from .forms import BusForm
 from .models import Bus, Trip
 
+MODULE_BUTTONS = [
+    'Buses',
+    'Drivers',
+    'Conductors',
+    'Scheduling',
+    'Fuel Usage',
+    'Maintenance',
+    'Current Trips',
+    'View Timetable',
+]
+
 # Create your views here.
 def _get_bus_trip_rows():
     rows = []
@@ -75,16 +86,7 @@ def bus_dashboard(request):
         'available_buses': Bus.objects.filter(status='AVAILABLE').count(),
         'on_route_buses': on_route_count,
         'maintenance_buses': maintenance_count,
-        'module_buttons': [
-            'Buses',
-            'Drivers',
-            'Conductors',
-            'Scheduling',
-            'Fuel Usage',
-            'Maintenance',
-            'Current Trips',
-            'View Timetable',
-        ],
+        'module_buttons': MODULE_BUTTONS,
     }
 
     return render(request, 'core/bus_dashboard.html', context)
@@ -105,4 +107,24 @@ def manage_bus(request, bus_id):
     else:
         form = BusForm(instance=bus)
 
-    return render(request, 'core/manage_bus.html', {'form': form, 'bus': bus})
+    return render(
+        request,
+        'core/manage_bus.html',
+        {'form': form, 'bus': bus, 'module_buttons': MODULE_BUTTONS},
+    )
+
+
+def add_bus(request):
+    if request.method == 'POST':
+        form = BusForm(request.POST, request.FILES)
+        if form.is_valid():
+            created_bus = form.save()
+            return redirect(f"{reverse('bus_dashboard')}?bus={created_bus.id}")
+    else:
+        form = BusForm()
+
+    return render(
+        request,
+        'core/add_bus.html',
+        {'form': form, 'module_buttons': MODULE_BUTTONS},
+    )

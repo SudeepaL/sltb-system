@@ -69,6 +69,7 @@ body {
   grid-template-columns: 2fr 1fr;
   gap: 14px;
   padding: 24px 18px;
+  align-items: start;
 }
 
 .bus-table-panel,
@@ -80,7 +81,22 @@ body {
   border-radius: 12px;
 }
 
-.bus-table-panel { overflow: auto; }
+.bus-table-panel {
+  overflow: hidden;
+  max-height: 700px;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 46px;
+  padding: 12px 14px 8px;
+}
+
+.bus-table-panel table {
+  margin-bottom: 0;
+}
 
 table {
   width: 100%;
@@ -99,9 +115,43 @@ thead th {
 }
 
 .bus-code-link, .manage-inline { color: #0a2b76; font-weight: 700; }
+.bus-code-link { text-decoration: none; }
+
+.bus-table-panel tbody tr {
+  transition: background-color 0.22s ease, transform 0.22s ease;
+}
+
+.bus-table-panel tbody tr.hover-row,
+.bus-table-panel tbody tr:hover,
+.bus-table-panel tbody tr.active-row {
+  background-color: #dce9ff;
+}
+
+.table-footer {
+  padding: 14px 0 16px;
+  text-align: center;
+  border-top: 1px solid #d8d8d8;
+  background: #efefef;
+  margin-top: auto;
+}
 
 .details-panel {
   padding: 14px 16px;
+}
+
+.details-animated {
+  animation: detailFadeIn 0.38s ease both;
+}
+
+@keyframes detailFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .bus-photo {
@@ -145,8 +195,10 @@ dd { margin: 0; font-weight: 700; }
   display: flex;
   flex-wrap: wrap;
   gap: 28px;
-  padding: 22px 26px;
-  font-size: 38px;
+  justify-content: center;
+  text-align: center;
+  padding: 18px 26px;
+  font-size: 24px;
   background: #f7f7f7;
 }
 
@@ -163,6 +215,15 @@ dd { margin: 0; font-weight: 700; }
   padding: 8px;
   border-radius: 6px;
   border: 1px solid #bbb;
+}
+
+.form-shell {
+  padding: 20px;
+}
+
+.manage-form label {
+  font-weight: 700;
+  margin-bottom: 4px;
 }
 .manage-actions {
   display: flex;
