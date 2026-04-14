@@ -67,6 +67,10 @@
         .route-stop-actions .form-select {
             width: 260px;
         }
+        
+        #stopSelector option.create-stop-option {
+            font-weight: 700;
+        }
     </style>
 </head>
 <body>
@@ -122,6 +126,7 @@
             <div class="route-stop-actions">
                 <select id="stopSelector" class="form-select">
                     <option value="">Add a stop</option>
+                    <option value="__create_stop__" class="create-stop-option" data-create-url="{% url 'add_stop' route.id %}">+ Create a stop</option>
                     {% for stop in all_stops %}
                         <option value="{{ stop.id }}" data-name="{{ stop.stop_name }}" data-lat="{{ stop.latitude }}" data-lng="{{ stop.longitude }}">{{ stop.stop_name }}</option>
                     {% endfor %}
@@ -211,6 +216,10 @@
     stopSelector.addEventListener('change', () => {
         const option = stopSelector.options[stopSelector.selectedIndex];
         if (!option.value) return;
+        if (option.value === '__create_stop__') {
+            window.location.href = option.dataset.createUrl;
+            return;
+        }
 
         const emptyRow = tbody.querySelector('.empty-row');
         if (emptyRow) emptyRow.remove();

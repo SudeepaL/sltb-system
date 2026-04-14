@@ -9,6 +9,7 @@ urlpatterns = [
     path('routes/', views.route_dashboard, name='route_dashboard'),
     path('routes/add/', views.add_route, name='add_route'),
     path('routes/<int:route_id>/stops/', views.manage_route_stops, name='manage_route_stops'),
+    path('routes/<int:route_id>/stops/add/', views.add_stop, name='add_stop'),
     path('buses/add/', views.add_bus, name='add_bus'),
     path('buses/<int:bus_id>/manage/', views.manage_bus, name='manage_bus'),
 

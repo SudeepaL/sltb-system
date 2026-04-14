@@ -1,5 +1,5 @@
 from django import forms
-from .models import Bus, Conductor, Driver, Route
+from .models import Bus, Conductor, Driver, Route, Stop
 
 
 class BusForm(forms.ModelForm):
@@ -63,4 +63,13 @@ class RouteForm(forms.ModelForm):
             'end_location',
             'distance',
             'estimated_duration',
-        ]       
+        ]    
+
+class StopForm(forms.ModelForm):
+    class Meta:
+        model = Stop
+        fields = [
+            'stop_name',
+            'latitude',
+            'longitude',
+        ]   
