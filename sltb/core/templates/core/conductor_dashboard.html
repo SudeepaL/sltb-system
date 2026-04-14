@@ -1,0 +1,102 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conductor Module Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
+</head>
+<body>
+<header class="top-area">
+    <img src="{% static 'core/logo.jpg' %}" alt="SLTB Logo" class="logo">
+    <nav class="module-nav">
+        <div class="module-buttons">
+            {% for item in module_buttons %}
+                <a href="{{ item.url }}" class="module-btn {% if item.is_active %}active{% endif %}">{{ item.label }}</a>
+            {% endfor %}
+        </div>
+    </nav>
+</header>
+
+<main class="dashboard-grid">
+    <section class="bus-table-panel shadow-sm">
+        <h2 class="panel-title"><strong>Current Conductor Activity:</strong></h2>
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Conductor ID</th>
+                    <th>Conductor name</th>
+                    <th>Conductor Status</th>
+                    <th>Current Trip</th>
+                    <th>Driver Appointed With</th>
+                    <th>Last Updated</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in conductor_rows %}
+                <tr class="{% if selected_conductor and selected_conductor.id == row.conductor.id %}active-row{% endif %}">
+                    <td><a href="?conductor={{ row.conductor.id }}" class="bus-code-link">{{ row.conductor.id }}</a></td>
+                    <td>{{ row.conductor.conductor_name }}</td>
+                    <td>{{ row.conductor.get_conductor_status_display }}</td>
+                    <td>{{ row.current_trip }}</td>
+                    <td>{{ row.driver_name }}</td>
+                    <td>--</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6">No conductors saved in the system.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="table-footer">
+            <a href="{% url 'add_conductor' %}" class="manage-btn">Add conductors</a>
+        </div>
+    </section>
+
+    <aside class="details-panel shadow-sm">
+        <h2 class="panel-title"><strong>Conductor Details:</strong></h2>
+        {% if selected_conductor %}
+            <div class="details-animated" id="detailsCard">
+                {% if selected_conductor.conductor_id_image %}
+                    <img src="{{ selected_conductor.conductor_id_image.url }}" alt="{{ selected_conductor.conductor_name }}" class="bus-photo">
+                {% else %}
+                    <div class="bus-photo placeholder">No conductor ID image</div>
+                {% endif %}
+                <dl>
+                    <dt>Conductor ID:</dt><dd>{{ selected_conductor.id }}</dd>
+                    <dt>Conductor Name:</dt><dd>{{ selected_conductor.conductor_name }}</dd>
+                    <dt>NIC:</dt><dd>{{ selected_conductor.c_nic_number }}</dd>
+                    <dt>Date of Birth:</dt><dd>{{ selected_conductor.c_dob }}</dd>
+                    <dt>Gender:</dt><dd>{{ selected_conductor.get_c_gender_display }}</dd>
+                    <dt>Phone Number:</dt><dd>{{ selected_conductor.c_phone_number }}</dd>
+                    <dt>Email:</dt><dd>{{ selected_conductor.c_email|default:'-' }}</dd>
+                    <dt>Address:</dt><dd>{{ selected_conductor.conductor_address|default:'-' }}</dd>
+                    <dt>Status:</dt><dd>{{ selected_conductor.get_conductor_status_display }}</dd>
+                </dl>
+                <a href="{% url 'manage_conductor' selected_conductor.id %}" class="manage-btn">Manage Conductor</a>
+            </div>
+        {% else %}
+            <p>Select a conductor to view details.</p>
+        {% endif %}
+    </aside>
+</main>
+
+<footer class="summary-row">
+    <span>Total conductors: <strong>{{ total_conductors }}</strong></span>
+    <span>Available conductors: <strong>{{ available_conductors }}</strong></span>
+    <span>Conductors on duty: <strong>{{ on_duty_conductors }}</strong></span>
+    <span>Conductors off duty: <strong>{{ off_duty_conductors }}</strong></span>
+</footer>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.querySelectorAll('.bus-code-link').forEach((link) => {
+        const row = link.closest('tr');
+        link.addEventListener('mouseenter', () => row.classList.add('hover-row'));
+        link.addEventListener('mouseleave', () => row.classList.remove('hover-row'));
+    });
+</script>
+</body>
+</html>

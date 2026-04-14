@@ -13,8 +13,8 @@
     <img src="{% static 'core/logo.jpg' %}" alt="SLTB Logo" class="logo">
     <nav class="module-nav">
         <div class="module-buttons">
-            {% for label in module_buttons %}
-                <button type="button" class="module-btn {% if label == 'Buses' %}active{% endif %}">{{ label }}</button>
+         {% for item in module_buttons %}
+                <a href="{{ item.url }}" class="module-btn {% if item.is_active %}active{% endif %}">{{ item.label }}</a>   
             {% endfor %}
         </div>
     </nav>
@@ -37,7 +37,6 @@
             </thead>
             <tbody>
                 {% for row in bus_rows %}
-                <tr>
                 <tr class="{% if selected_bus and selected_bus.id == row.bus.id %}active-row{% endif %}">
                     <td>
                         <a href="?bus={{ row.bus.id }}" class="bus-code-link">{{ row.bus.bus_code }}</a>
