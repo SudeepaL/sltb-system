@@ -221,18 +221,41 @@ class Schedule(models.Model):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
 
-        #auto assgning same driver conductor for return trips 
+        # Auto-assign same bus, driver, and conductor from the outbound trip
+        # to the return trip, but only when the time gap between them is <= 1 hour.
         if self.timetable.direction == 'RETURN':
-            outbound = Schedule.objects.filter(
-                timetable__route=self.timetable.route,
-                timetable__direction='OUTBOUND',
-                date=self.date
-            ).first()
+            from datetime import datetime, timedelta
 
-            if outbound:
-                self.driver = outbound.driver
-                self.conductor = outbound.conductor
-                super().save(update_fields=['driver' , 'conductor'])
+            return_departure = self.timetable.departure_time
+
+            # Find candidate outbound timetables on the same route and day
+            outbound_timetables = TimeTable.objects.filter(
+                route=self.timetable.route,
+                direction='OUTBOUND',
+                day_of_week=self.timetable.day_of_week,
+            )
+
+            # Keep only those whose arrival time is within 1 hour before the return departure
+            matching_outbound_tt = None
+            for tt in outbound_timetables:
+                outbound_arrival = datetime.combine(self.date, tt.arrival_time)
+                return_dep = datetime.combine(self.date, return_departure)
+                gap = return_dep - outbound_arrival
+                if timedelta(0) <= gap <= timedelta(hours=1):
+                    matching_outbound_tt = tt
+                    break
+
+            if matching_outbound_tt:
+                outbound = Schedule.objects.filter(
+                    timetable=matching_outbound_tt,
+                    date=self.date,
+                ).first()
+
+                if outbound:
+                    self.bus = outbound.bus
+                    self.driver = outbound.driver
+                    self.conductor = outbound.conductor
+                    super().save(update_fields=['bus', 'driver', 'conductor'])
     
 #Trip class: 
 class Trip(models.Model):

@@ -1,7 +1,8 @@
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from .forms import BusForm, ConductorForm, DriverForm, RouteForm, StopForm, TimeTableForm
-from .models import Bus, Conductor, Driver, Route, RouteStop, Stop, TimeTable, Trip
+from .forms import BusForm, BusMaintenanceForm, ConductorForm, DriverForm, RouteForm, ScheduleForm, StopForm, TimeTableForm
+from .models import Bus, BusMaintenance, Conductor, Driver, Route, Schedule, RouteStop, Stop, TimeTable, Trip
 
 def _module_buttons(active_module):
     items = [
@@ -10,9 +11,9 @@ def _module_buttons(active_module):
         {'label': 'Conductors', 'url': reverse('conductor_dashboard'), 'key': 'conductors'},
         {'label': 'Manage Routes', 'url': reverse('route_dashboard'), 'key': 'manage_routes'},
         {'label': 'View Timetable', 'url': reverse('timetable_dashboard'), 'key': 'view_timetable'},
-        {'label': 'Scheduling', 'url': '#', 'key': 'scheduling'},
+         {'label': 'Scheduling', 'url': reverse('scheduling_dashboard'), 'key': 'scheduling'},
         {'label': 'Fuel Usage', 'url': '#', 'key': 'fuel_usage'},
-        {'label': 'Maintenance', 'url': '#', 'key': 'maintenance'},
+        {'label': 'Maintenance', 'url': reverse('maintenance_dashboard'), 'key': 'maintenance'},
         {'label': 'Current Trips', 'url': '#', 'key': 'current_trips'},
         
     ]
@@ -454,4 +455,136 @@ def add_stop(request, route_id):
             'route': route,
             'module_buttons': _module_buttons('manage_routes'),
         },
+    )
+
+def scheduling_dashboard(request):
+    if request.method == 'POST' and 'delete_schedule' in request.POST:
+        schedule_id = request.POST.get('schedule_id')
+        schedule = get_object_or_404(Schedule, id=schedule_id)
+        schedule.delete()
+        return redirect('scheduling_dashboard')
+
+    schedules = Schedule.objects.select_related(
+        'timetable__route', 'bus', 'driver', 'conductor'
+    ).order_by('-date', 'timetable__departure_time')
+
+    context = {
+        'schedules': schedules,
+        'total_schedules': schedules.count(),
+        'scheduled_count': schedules.filter(status='SCHEDULED').count(),
+        'completed_count': schedules.filter(status='COMPLETED').count(),
+        'cancelled_count': schedules.filter(status='CANCELLED').count(),
+        'module_buttons': _module_buttons('scheduling'),
+    }
+    return render(request, 'core/scheduling_dashboard.html', context)
+
+
+def add_schedule(request):
+    if request.method == 'POST':
+        form = ScheduleForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('scheduling_dashboard')
+    else:
+        form = ScheduleForm()
+
+    return render(
+        request,
+        'core/add_schedule.html',
+        {'form': form, 'module_buttons': _module_buttons('scheduling')},
+    )
+
+
+def maintenance_dashboard(request):
+    if request.method == 'POST' and 'delete_maintenance' in request.POST:
+        record_id = request.POST.get('record_id')
+        record = get_object_or_404(BusMaintenance, id=record_id)
+        record.delete()
+        return redirect('maintenance_dashboard')
+
+    maintenance_records = BusMaintenance.objects.select_related('bus').order_by(
+        '-service_date', '-created_at'
+    )
+
+    context = {
+        'maintenance_records': maintenance_records,
+        'total_records': maintenance_records.count(),
+        'due_records': maintenance_records.filter(next_service_due_mileage__isnull=False).count(),
+        'module_buttons': _module_buttons('maintenance'),
+    }
+    return render(request, 'core/maintenance_dashboard.html', context)
+
+
+def get_outbound_for_return(request):
+    """
+    AJAX endpoint: given a RETURN timetable ID and a date, returns the
+    matching outbound schedule's bus/driver/conductor (if the gap is <= 1 hour).
+    """
+    from datetime import datetime, timedelta
+    from django.http import JsonResponse
+
+    timetable_id = request.GET.get('timetable_id')
+    date_str = request.GET.get('date')
+
+    if not timetable_id or not date_str:
+        return JsonResponse({'match': False})
+
+    try:
+        return_tt = TimeTable.objects.get(id=timetable_id, direction='RETURN')
+        schedule_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except (TimeTable.DoesNotExist, ValueError):
+        return JsonResponse({'match': False})
+
+    outbound_timetables = TimeTable.objects.filter(
+        route=return_tt.route,
+        direction='OUTBOUND',
+        day_of_week=return_tt.day_of_week,
+    )
+
+    matching_outbound_tt = None
+    for tt in outbound_timetables:
+        outbound_arrival = datetime.combine(schedule_date, tt.arrival_time)
+        return_dep = datetime.combine(schedule_date, return_tt.departure_time)
+        gap = return_dep - outbound_arrival
+        if timedelta(0) <= gap <= timedelta(hours=1):
+            matching_outbound_tt = tt
+            break
+
+    if not matching_outbound_tt:
+        return JsonResponse({'match': False})
+
+    outbound_schedule = Schedule.objects.filter(
+        timetable=matching_outbound_tt,
+        date=schedule_date,
+    ).select_related('bus', 'driver', 'conductor').first()
+
+    if not outbound_schedule:
+        return JsonResponse({'match': False})
+
+    return JsonResponse({
+        'match': True,
+        'bus_id': outbound_schedule.bus_id,
+        'bus_label': str(outbound_schedule.bus) if outbound_schedule.bus else '',
+        'driver_id': outbound_schedule.driver_id,
+        'driver_label': str(outbound_schedule.driver) if outbound_schedule.driver else '',
+        'conductor_id': outbound_schedule.conductor_id,
+        'conductor_label': str(outbound_schedule.conductor) if outbound_schedule.conductor else '',
+        'outbound_departure': str(matching_outbound_tt.departure_time),
+        'outbound_arrival': str(matching_outbound_tt.arrival_time),
+    })
+
+
+def add_maintenance(request):
+    if request.method == 'POST':
+        form = BusMaintenanceForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('maintenance_dashboard')
+    else:
+        form = BusMaintenanceForm()
+
+    return render(
+        request,
+        'core/add_maintenance.html',
+        {'form': form, 'module_buttons': _module_buttons('maintenance')},
     )

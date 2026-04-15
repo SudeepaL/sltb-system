@@ -1,5 +1,5 @@
 from django import forms
-from .models import Bus, Conductor, Driver, Route, Stop, TimeTable
+from .models import Bus, BusMaintenance, Conductor, Driver, Route, Schedule, Stop, TimeTable
 
 
 class BusForm(forms.ModelForm):
@@ -83,4 +83,29 @@ class TimeTableForm(forms.ModelForm):
             'arrival_time',
             'day_of_week',
             'direction',
+        ]
+
+class ScheduleForm(forms.ModelForm):
+    class Meta:
+        model = Schedule
+        fields = [
+            'timetable',
+            'bus',
+            'driver',
+            'conductor',
+            'date',
+            'status',
+        ]
+
+
+class BusMaintenanceForm(forms.ModelForm):
+    class Meta:
+        model = BusMaintenance
+        fields = [
+            'bus',
+            'service_date',
+            'mileage',
+            'service_history',
+            'maintenance_details',
+            'next_service_due_mileage',
         ]

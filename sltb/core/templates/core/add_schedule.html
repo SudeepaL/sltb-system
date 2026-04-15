@@ -1,0 +1,182 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Schedule</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
+    <style>
+        .autofill-notice {
+            display: none;
+            background: #e8f5e9;
+            border: 1px solid #4caf50;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-bottom: 14px;
+            color: #2e7d32;
+            font-size: 0.9rem;
+        }
+        .autofill-notice.show { display: flex; align-items: center; gap: 8px; }
+        .autofill-notice .icon { font-size: 1.2rem; }
+        .field-locked select {
+            background-color: #f1f8e9 !important;
+            border-color: #81c784 !important;
+        }
+        .lock-badge {
+            display: none;
+            font-size: 0.75rem;
+            color: #388e3c;
+            margin-top: 3px;
+        }
+        .lock-badge.show { display: block; }
+    </style>
+</head>
+<body>
+<header class="top-area">
+    <img src="{% static 'core/logo.jpg' %}" alt="SLTB Logo" class="logo">
+    <nav class="module-nav">
+        <div class="module-buttons">
+            {% for item in module_buttons %}
+                <a href="{{ item.url }}" class="module-btn {% if item.is_active %}active{% endif %}">{{ item.label }}</a>
+            {% endfor %}
+        </div>
+    </nav>
+</header>
+
+<main class="manage-page">
+    <h1 class="panel-title"><strong>Add New Schedule</strong></h1>
+
+    <div class="autofill-notice" id="autofill-notice">
+        <span class="icon">&#128279;</span>
+        <span id="autofill-message">Bus, driver, and conductor have been automatically filled from the matching outbound trip.</span>
+    </div>
+
+    <form method="post" class="manage-form form-shell" id="schedule-form">
+        {% csrf_token %}
+
+        <p>
+            <label for="{{ form.timetable.id_for_label }}">{{ form.timetable.label }}:</label>
+            {{ form.timetable }}
+            {% if form.timetable.errors %}<span class="errorlist">{{ form.timetable.errors }}</span>{% endif %}
+        </p>
+
+        <p>
+            <label for="{{ form.date.id_for_label }}">{{ form.date.label }}:</label>
+            {{ form.date }}
+            {% if form.date.errors %}<span class="errorlist">{{ form.date.errors }}</span>{% endif %}
+        </p>
+
+        <p id="bus-field-wrapper">
+            <label for="{{ form.bus.id_for_label }}">{{ form.bus.label }}:</label>
+            {{ form.bus }}
+            <small class="lock-badge" id="bus-lock-badge">&#128274; Auto-filled from outbound trip</small>
+            {% if form.bus.errors %}<span class="errorlist">{{ form.bus.errors }}</span>{% endif %}
+        </p>
+
+        <p id="driver-field-wrapper">
+            <label for="{{ form.driver.id_for_label }}">{{ form.driver.label }}:</label>
+            {{ form.driver }}
+            <small class="lock-badge" id="driver-lock-badge">&#128274; Auto-filled from outbound trip</small>
+            {% if form.driver.errors %}<span class="errorlist">{{ form.driver.errors }}</span>{% endif %}
+        </p>
+
+        <p id="conductor-field-wrapper">
+            <label for="{{ form.conductor.id_for_label }}">{{ form.conductor.label }}:</label>
+            {{ form.conductor }}
+            <small class="lock-badge" id="conductor-lock-badge">&#128274; Auto-filled from outbound trip</small>
+            {% if form.conductor.errors %}<span class="errorlist">{{ form.conductor.errors }}</span>{% endif %}
+        </p>
+
+        <p>
+            <label for="{{ form.status.id_for_label }}">{{ form.status.label }}:</label>
+            {{ form.status }}
+            {% if form.status.errors %}<span class="errorlist">{{ form.status.errors }}</span>{% endif %}
+        </p>
+
+        <div class="manage-actions">
+            <button type="submit" class="manage-btn">Save Schedule</button>
+            <a href="{% url 'scheduling_dashboard' %}" class="module-btn">Cancel</a>
+        </div>
+    </form>
+</main>
+
+<script>
+    const OUTBOUND_API_URL = "{% url 'get_outbound_for_return' %}";
+
+    const timetableSelect = document.getElementById('{{ form.timetable.id_for_label }}');
+    const dateInput       = document.getElementById('{{ form.date.id_for_label }}');
+    const busSelect       = document.getElementById('{{ form.bus.id_for_label }}');
+    const driverSelect    = document.getElementById('{{ form.driver.id_for_label }}');
+    const conductorSelect = document.getElementById('{{ form.conductor.id_for_label }}');
+
+    const notice          = document.getElementById('autofill-notice');
+    const noticeMsg       = document.getElementById('autofill-message');
+    const busWrapper      = document.getElementById('bus-field-wrapper');
+    const driverWrapper   = document.getElementById('driver-field-wrapper');
+    const conductorWrapper= document.getElementById('conductor-field-wrapper');
+    const busLock         = document.getElementById('bus-lock-badge');
+    const driverLock      = document.getElementById('driver-lock-badge');
+    const conductorLock   = document.getElementById('conductor-lock-badge');
+
+    function lockField(wrapper, lock) {
+        wrapper.classList.add('field-locked');
+        lock.classList.add('show');
+    }
+
+    function unlockField(wrapper, lock) {
+        wrapper.classList.remove('field-locked');
+        lock.classList.remove('show');
+    }
+
+    function clearAutofill() {
+        unlockField(busWrapper, busLock);
+        unlockField(driverWrapper, driverLock);
+        unlockField(conductorWrapper, conductorLock);
+        notice.classList.remove('show');
+    }
+
+    async function checkAndAutofill() {
+        const timetableId = timetableSelect.value;
+        const date = dateInput.value;
+
+        if (!timetableId || !date) { clearAutofill(); return; }
+
+        try {
+            const resp = await fetch(OUTBOUND_API_URL + '?timetable_id=' + encodeURIComponent(timetableId) + '&date=' + encodeURIComponent(date));
+            const data = await resp.json();
+
+            if (data.match) {
+                if (data.bus_id) {
+                    busSelect.value = data.bus_id;
+                    lockField(busWrapper, busLock);
+                }
+                if (data.driver_id) {
+                    driverSelect.value = data.driver_id;
+                    lockField(driverWrapper, driverLock);
+                }
+                if (data.conductor_id) {
+                    conductorSelect.value = data.conductor_id;
+                    lockField(conductorWrapper, conductorLock);
+                }
+
+                noticeMsg.textContent =
+                    'Bus, driver, and conductor have been automatically loaded from the outbound trip (' +
+                    data.outbound_departure + ' \u2192 ' + data.outbound_arrival + '). ' +
+                    'They will be confirmed automatically when this schedule is saved.';
+                notice.classList.add('show');
+            } else {
+                clearAutofill();
+            }
+        } catch (e) {
+            clearAutofill();
+        }
+    }
+
+    timetableSelect.addEventListener('change', checkAndAutofill);
+    dateInput.addEventListener('change', checkAndAutofill);
+</script>
+
+</body>
+</html>

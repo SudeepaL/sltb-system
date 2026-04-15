@@ -19,4 +19,9 @@ urlpatterns = [
     path('conductors/<int:conductor_id>/manage/', views.manage_conductor, name='manage_conductor'),
     path('timetables/', views.timetable_dashboard, name='timetable_dashboard'),
     path('timetables/add/', views.add_timetable, name='add_timetable'),
+    path('scheduling/', views.scheduling_dashboard, name='scheduling_dashboard'),
+    path('scheduling/add/', views.add_schedule, name='add_schedule'),
+    path('scheduling/outbound-for-return/', views.get_outbound_for_return, name='get_outbound_for_return'),
+    path('maintenance/', views.maintenance_dashboard, name='maintenance_dashboard'),
+    path('maintenance/add/', views.add_maintenance, name='add_maintenance'),
 ]
