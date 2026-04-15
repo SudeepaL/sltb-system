@@ -1,5 +1,6 @@
 :root {
   --blue: #0a4db2;
+  --blue-glow: rgba(10, 77, 178, 0.55);
   --bg: #f2f2f4;
 }
 
@@ -10,6 +11,7 @@ body {
   background: var(--bg);
 }
 
+/* ── Header ──────────────────────────────────────────── */
 .top-area {
   background: #F00808;
   padding: 10px 0;
@@ -23,7 +25,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0px;
-  padding: 0 20px ;
+  padding: 0 20px;
   width: fit-content;
   border-top-right-radius: 12px;
   border-bottom-right-radius: 12px;
@@ -64,6 +66,7 @@ body {
   box-shadow: none;
 }
 
+/* ── Layout ──────────────────────────────────────────── */
 .dashboard-grid {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -72,6 +75,7 @@ body {
   align-items: start;
 }
 
+/* ── Panels ──────────────────────────────────────────── */
 .bus-table-panel,
 .details-panel,
 .manage-page,
@@ -89,14 +93,40 @@ body {
   padding: 0 20px;
 }
 
+/* ── Panel heading ───────────────────────────────────── */
 .panel-title {
   margin: 0;
-  font-size: 46px;
-  padding: 12px 14px 8px;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #0a2b76;
+  padding: 14px 4px 10px;
+  border-bottom: 3px solid var(--blue);
+  margin-bottom: 8px;
 }
 
+/* Headings inside flex wrappers (manage_route_stops, timetable_dashboard) */
+.route-stops-header h2,
+.timetable-header h2 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #0a2b76;
+  padding: 14px 4px 10px;
+  border-bottom: 3px solid var(--blue);
+  margin-bottom: 8px;
+  width: 100%;
+  display: block;
+}
+
+/* ── Table base ──────────────────────────────────────── */
+/* Inset table slightly so scale(1.02) on selected rows never clips */
 .bus-table-panel table {
   margin-bottom: 0;
+  width: calc(100% - 8px);
+  margin-left: 4px;
+  margin-right: 4px;
 }
 
 table {
@@ -105,6 +135,7 @@ table {
   border-spacing: 0;
   font-size: 20px;
 }
+
 th, td {
   border-top: 1px solid #d8d8d8;
   border-bottom: 1px solid #d8d8d8;
@@ -122,6 +153,7 @@ thead th {
 .bus-code-link, .manage-inline { color: #0a2b76; font-weight: 700; }
 .bus-code-link { text-decoration: none; }
 
+/* ── Row hover ───────────────────────────────────────── */
 .bus-table-panel tbody tr {
   transition: background-color 0.22s ease, transform 0.25s ease, box-shadow 0.25s ease;
 }
@@ -132,23 +164,45 @@ thead th {
   transform: scale(1.02);
 }
 
+/* Rounded corners on first/last cell for hovered/active/selected rows */
 .bus-table-panel tbody tr.hover-row td:first-child,
 .bus-table-panel tbody tr:hover td:first-child,
-.bus-table-panel tbody tr.active-row td:first-child {
+.bus-table-panel tbody tr.active-row td:first-child,
+.bus-table-panel tbody tr.selected-row td:first-child {
   border-radius: 6px 0 0 6px;
 }
 
 .bus-table-panel tbody tr.hover-row td:last-child,
 .bus-table-panel tbody tr:hover td:last-child,
-.bus-table-panel tbody tr.active-row td:last-child {
+.bus-table-panel tbody tr.active-row td:last-child,
+.bus-table-panel tbody tr.selected-row td:last-child {
   border-radius: 0 6px 6px 0;
 }
 
-.bus-table-panel tbody tr.active-row {
-  background-color: #e8edf6;
+/* ── Active / selected row — blue glow ───────────────── */
+.bus-table-panel tbody tr.active-row,
+.bus-table-panel tbody tr.selected-row {
+  background-color: #dce8ff;
   transform: scale(1.02);
+  box-shadow:
+    0 0 0 2px var(--blue),
+    0 0 12px 4px var(--blue-glow);
+  border-radius: 3px;
 }
 
+/* Timetable and route-stops tbodies sit inside .bus-table-panel
+   but use their own id selectors — covered by the generic rules above.
+   Extra specificity for the manage_route_stops selected-row override: */
+#routeStopsTbody tr.selected-row,
+#timetableTbody tr.selected-row {
+  background-color: #dce8ff !important;
+  transform: scale(1.02);
+  box-shadow:
+    0 0 0 2px var(--blue),
+    0 0 12px 4px var(--blue-glow) !important;
+}
+
+/* ── Table footer ────────────────────────────────────── */
 .table-footer {
   padding: 14px 0 16px;
   text-align: center;
@@ -157,6 +211,7 @@ thead th {
   margin-top: auto;
 }
 
+/* ── Details panel ───────────────────────────────────── */
 .details-panel {
   padding: 0 16px 14px;
 }
@@ -171,14 +226,8 @@ thead th {
 }
 
 @keyframes detailFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .bus-photo {
@@ -201,11 +250,13 @@ dl {
   grid-template-columns: 1fr 1fr;
   gap: 8px 16px;
   font-size: 18px;
+  margin-top: 12px;
 }
 
 dt { font-weight: 500; }
 dd { margin: 0; font-weight: 700; }
 
+/* ── Buttons ─────────────────────────────────────────── */
 .manage-btn, .delete-btn {
   display: inline-block;
   border: none;
@@ -235,6 +286,7 @@ dd { margin: 0; font-weight: 700; }
   background: #c0160c;
 }
 
+/* ── Summary footer ──────────────────────────────────── */
 .summary-row {
   display: flex;
   flex-wrap: wrap;
@@ -246,6 +298,7 @@ dd { margin: 0; font-weight: 700; }
   background: #f7f7f7;
 }
 
+/* ── Manage / add pages ──────────────────────────────── */
 .manage-page {
   margin: 24px auto;
   max-width: 900px;
@@ -275,6 +328,7 @@ dd { margin: 0; font-weight: 700; }
   align-items: center;
 }
 
+/* ── Responsive ──────────────────────────────────────── */
 @media (max-width: 1100px) {
   .dashboard-grid { grid-template-columns: 1fr; }
 }

@@ -13,8 +13,8 @@
     <img src="{% static 'core/logo.jpg' %}" alt="SLTB Logo" class="logo">
     <nav class="module-nav">
         <div class="module-buttons">
-         {% for item in module_buttons %}
-                <a href="{{ item.url }}" class="module-btn {% if item.is_active %}active{% endif %}">{{ item.label }}</a>   
+            {% for item in module_buttons %}
+                <a href="{{ item.url }}" class="module-btn {% if item.is_active %}active{% endif %}">{{ item.label }}</a>
             {% endfor %}
         </div>
     </nav>
@@ -22,7 +22,7 @@
 
 <main class="dashboard-grid">
     <section class="bus-table-panel shadow-sm">
-        <h2 class="panel-title"><strong>Current Bus Activity:</strong></h2>
+        <h2 class="panel-title"><strong>Current Bus Activity</strong></h2>
         <table class="table table-hover align-middle mb-0">
             <thead>
                 <tr>
@@ -32,7 +32,6 @@
                     <th>Driver</th>
                     <th>Conductor</th>
                     <th>Last Updated</th>
-                    <!--<th>Actions</th> -->
                 </tr>
             </thead>
             <tbody>
@@ -60,7 +59,7 @@
     </section>
 
     <aside class="details-panel shadow-sm">
-        <h2 class="panel-title"><strong>Bus Details:</strong></h2>
+        <h2 class="panel-title"><strong>Bus Details</strong></h2>
         {% if selected_bus %}
             <div class="details-animated" id="detailsCard">
                 {% if selected_bus.image %}
@@ -80,7 +79,7 @@
                     <dt>Depot:</dt><dd>{{ selected_bus.depot }}</dd>
                     <dt>Fuel Efficiency:</dt><dd>{{ selected_bus.fuel_efficiency_km_per_liter }} km/L</dd>
                 </dl>
-                <a href="{% url 'manage_bus' selected_bus.id %}" class="manage-btn">Manage Bus</a>
+                <a href="{% url 'manage_bus' selected_bus.id %}" class="manage-btn" style="margin-top:12px;display:inline-block;">Manage Bus</a>
             </div>
         {% else %}
             <p>Select a bus code to view details.</p>
@@ -94,7 +93,8 @@
     <span>Buses On Route: <strong>{{ on_route_buses }}</strong></span>
     <span>Buses under maintenance: <strong>{{ maintenance_buses }}</strong></span>
 </footer>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     document.querySelectorAll('.bus-code-link').forEach((link) => {
         const row = link.closest('tr');

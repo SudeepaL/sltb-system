@@ -11,27 +11,8 @@
         .timetable-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            padding: 12px 0 8px;
-        }
-
-        .timetable-header h2 {
-            margin: 0;
-            font-size: 38px;
-            font-weight: 700;
-        }
-
-        .selected-row {
-            background-color: #e8edf6 !important;
-            transform: scale(1.02);
-        }
-
-        #timetableTbody tr.selected-row td:first-child {
-            border-radius: 6px 0 0 6px;
-        }
-
-        #timetableTbody tr.selected-row td:last-child {
-            border-radius: 0 6px 6px 0;
+            align-items: flex-end;
+            margin-bottom: 0;
         }
 
         .confirmation-panel {
@@ -101,7 +82,7 @@
 <main class="dashboard-grid" style="grid-template-columns: 1fr;">
     <section class="bus-table-panel shadow-sm" style="max-height: none;">
         <div class="timetable-header">
-            <h2><strong>Timetables</strong></h2>
+            <h2>Timetables</h2>
         </div>
 
         <table class="table table-hover align-middle mb-0" id="timetableTable">

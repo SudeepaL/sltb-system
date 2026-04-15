@@ -11,32 +11,13 @@
         .route-stops-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-
-        .route-stops-header h2 {
-            margin: 0;
-            font-size: 38px;
-            font-weight: 700;
+            align-items: flex-end;
+            margin-bottom: 0;
         }
 
         .drop-target {
             background: #e7f0ff;
             outline: 2px dashed #0a4db2;
-        }
-
-        .selected-row {
-            background-color: #e8edf6 !important;
-            transform: scale(1.02);
-        }
-
-        #routeStopsTbody tr.selected-row td:first-child {
-            border-radius: 6px 0 0 6px;
-        }
-
-        #routeStopsTbody tr.selected-row td:last-child {
-            border-radius: 0 6px 6px 0;
         }
 
         .confirmation-panel {
@@ -56,7 +37,7 @@
             gap: 10px;
         }
 
-           .route-stop-actions {
+        .route-stop-actions {
             display: flex;
             align-items: center;
             justify-content: center;
@@ -67,7 +48,7 @@
         .route-stop-actions .form-select {
             width: 260px;
         }
-        
+
         #stopSelector option.create-stop-option {
             font-weight: 700;
         }
@@ -88,8 +69,8 @@
 <main class="dashboard-grid" style="grid-template-columns: 1fr;">
     <section class="bus-table-panel shadow-sm" style="max-height: none;">
         <div class="route-stops-header">
-            <h2>Route Stops for route number: {{ route.route_number }}</h2>
-            </div>
+            <h2>Route Stops — Route {{ route.route_number }}</h2>
+        </div>
 
         <table class="table table-hover align-middle mb-0" id="routeStopsTable">
             <thead>
@@ -115,7 +96,7 @@
         </table>
 
         <div class="confirmation-panel" id="confirmationPanel">
-            <span><strong>Are you sure to save the changes</strong></span>
+            <span><strong>Are you sure you want to save the changes?</strong></span>
             <div class="confirmation-actions">
                 <button type="button" id="saveChangesBtn" class="manage-btn">Save</button>
                 <button type="button" id="revertChangesBtn" class="delete-btn">Revert changes</button>
@@ -176,13 +157,15 @@
     const bindRowEvents = (row) => {
         row.addEventListener('click', () => {
             tbody.querySelectorAll('tr').forEach((r) => r.classList.remove('selected-row'));
-            selectedRow = row;
-            row.classList.add('selected-row');
+            if (selectedRow === row) {
+                selectedRow = null;
+            } else {
+                selectedRow = row;
+                row.classList.add('selected-row');
+            }
         });
 
-        row.addEventListener('dragstart', () => {
-            draggedRow = row;
-        });
+        row.addEventListener('dragstart', () => { draggedRow = row; });
 
         row.addEventListener('dragover', (event) => {
             event.preventDefault();
@@ -241,9 +224,7 @@
     });
 
     deleteBtn.addEventListener('click', () => {
-        if (!selectedRow) {
-            return;
-        }
+        if (!selectedRow) return;
         selectedRow.remove();
         selectedRow = null;
         normalizeRows();
