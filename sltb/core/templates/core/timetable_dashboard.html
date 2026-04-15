@@ -1,0 +1,222 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timetable Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
+    <style>
+        .timetable-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0 8px;
+        }
+
+        .timetable-header h2 {
+            margin: 0;
+            font-size: 38px;
+            font-weight: 700;
+        }
+
+        .selected-row {
+            background-color: #e8edf6 !important;
+            transform: scale(1.02);
+        }
+
+        #timetableTbody tr.selected-row td:first-child {
+            border-radius: 6px 0 0 6px;
+        }
+
+        #timetableTbody tr.selected-row td:last-child {
+            border-radius: 0 6px 6px 0;
+        }
+
+        .confirmation-panel {
+            margin: 12px 0;
+            padding: 12px;
+            border: 1px solid #d0d0d0;
+            border-radius: 8px;
+            background: #fff8e6;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .confirmation-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .timetable-footer-actions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .badge-direction {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 15px;
+            font-weight: 700;
+        }
+        .badge-outbound {
+            background: #d0e8ff;
+            color: #0a4db2;
+        }
+        .badge-return {
+            background: #ffe8d0;
+            color: #b25a0a;
+        }
+        .badge-day {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 15px;
+            font-weight: 700;
+            background: #e8edf6;
+            color: #333;
+            text-transform: capitalize;
+        }
+    </style>
+</head>
+<body>
+<header class="top-area">
+    <img src="{% static 'core/logo.jpg' %}" alt="SLTB Logo" class="logo">
+    <nav class="module-nav">
+        <div class="module-buttons">
+            {% for item in module_buttons %}
+                <a href="{{ item.url }}" class="module-btn {% if item.is_active %}active{% endif %}">{{ item.label }}</a>
+            {% endfor %}
+        </div>
+    </nav>
+</header>
+
+<main class="dashboard-grid" style="grid-template-columns: 1fr;">
+    <section class="bus-table-panel shadow-sm" style="max-height: none;">
+        <div class="timetable-header">
+            <h2><strong>Timetables</strong></h2>
+        </div>
+
+        <table class="table table-hover align-middle mb-0" id="timetableTable">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Route</th>
+                    <th>From → To</th>
+                    <th>Departure</th>
+                    <th>Arrival</th>
+                    <th>Day</th>
+                    <th>Direction</th>
+                </tr>
+            </thead>
+            <tbody id="timetableTbody">
+                {% for tt in timetables %}
+                <tr data-timetable-id="{{ tt.id }}">
+                    <td>{{ forloop.counter }}</td>
+                    <td><strong>{{ tt.route.route_number }}</strong></td>
+                    <td>{{ tt.route.start_location }} → {{ tt.route.end_location }}</td>
+                    <td>{{ tt.departure_time|time:"H:i" }}</td>
+                    <td>{{ tt.arrival_time|time:"H:i" }}</td>
+                    <td><span class="badge-day">{{ tt.get_day_of_week_display }}</span></td>
+                    <td>
+                        <span class="badge-direction {% if tt.direction == 'OUTBOUND' %}badge-outbound{% else %}badge-return{% endif %}">
+                            {{ tt.get_direction_display }}
+                        </span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr class="empty-row">
+                    <td colspan="7">No timetables have been added yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="confirmation-panel" id="confirmationPanel">
+            <span><strong id="confirmText">Are you sure you want to delete this timetable entry?</strong></span>
+            <div class="confirmation-actions">
+                <form method="post" id="deleteForm" action="">
+                    {% csrf_token %}
+                    <input type="hidden" name="timetable_id" id="deleteTimetableId" value="">
+                    <button type="submit" name="delete_timetable" class="delete-btn">Yes, Delete</button>
+                </form>
+                <button type="button" id="cancelDeleteBtn" class="manage-btn">Cancel</button>
+            </div>
+        </div>
+
+        <div class="table-footer">
+            <div class="timetable-footer-actions">
+                <button type="button" id="deleteSelectedBtn" class="delete-btn">Delete Selected</button>
+                <a href="{% url 'add_timetable' %}" class="manage-btn">+ Add Timetable</a>
+            </div>
+        </div>
+    </section>
+</main>
+
+<footer class="summary-row">
+    <span>Total Timetables: <strong>{{ total_timetables }}</strong></span>
+    <span>Outbound: <strong>{{ outbound_count }}</strong></span>
+    <span>Return: <strong>{{ return_count }}</strong></span>
+    <span>Routes Covered: <strong>{{ routes_count }}</strong></span>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const tbody = document.getElementById('timetableTbody');
+    const confirmationPanel = document.getElementById('confirmationPanel');
+    const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+    const deleteForm = document.getElementById('deleteForm');
+    const deleteTimetableId = document.getElementById('deleteTimetableId');
+    const confirmText = document.getElementById('confirmText');
+
+    let selectedRow = null;
+
+    const bindRowEvents = (row) => {
+        row.addEventListener('click', () => {
+            tbody.querySelectorAll('tr').forEach(r => r.classList.remove('selected-row'));
+            if (selectedRow === row) {
+                selectedRow = null;
+                confirmationPanel.style.display = 'none';
+            } else {
+                selectedRow = row;
+                row.classList.add('selected-row');
+            }
+        });
+    };
+
+    tbody.querySelectorAll('tr:not(.empty-row)').forEach(bindRowEvents);
+
+    deleteSelectedBtn.addEventListener('click', () => {
+        if (!selectedRow) {
+            alert('Please select a timetable row to delete.');
+            return;
+        }
+        const id = selectedRow.dataset.timetableId;
+        const routeCell = selectedRow.cells[1].textContent.trim();
+        const fromTo = selectedRow.cells[2].textContent.trim();
+        const dep = selectedRow.cells[3].textContent.trim();
+        confirmText.textContent = `Delete timetable for Route ${routeCell} (${fromTo}) departing at ${dep}?`;
+        deleteTimetableId.value = id;
+        deleteForm.action = "{% url 'timetable_dashboard' %}";
+        confirmationPanel.style.display = 'flex';
+        confirmationPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+
+    cancelDeleteBtn.addEventListener('click', () => {
+        confirmationPanel.style.display = 'none';
+        if (selectedRow) {
+            selectedRow.classList.remove('selected-row');
+            selectedRow = null;
+        }
+    });
+</script>
+</body>
+</html>

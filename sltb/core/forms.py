@@ -1,5 +1,5 @@
 from django import forms
-from .models import Bus, Conductor, Driver, Route, Stop
+from .models import Bus, Conductor, Driver, Route, Stop, TimeTable
 
 
 class BusForm(forms.ModelForm):
@@ -73,3 +73,14 @@ class StopForm(forms.ModelForm):
             'latitude',
             'longitude',
         ]   
+
+class TimeTableForm(forms.ModelForm):
+    class Meta:
+        model = TimeTable
+        fields = [
+            'route',
+            'departure_time',
+            'arrival_time',
+            'day_of_week',
+            'direction',
+        ]

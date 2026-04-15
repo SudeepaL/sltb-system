@@ -1,7 +1,7 @@
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from .forms import BusForm, ConductorForm, DriverForm, RouteForm, StopForm
-from .models import Bus, Conductor, Driver, Route, RouteStop, Stop, Trip
+from .forms import BusForm, ConductorForm, DriverForm, RouteForm, StopForm, TimeTableForm
+from .models import Bus, Conductor, Driver, Route, RouteStop, Stop, TimeTable, Trip
 
 def _module_buttons(active_module):
     items = [
@@ -9,11 +9,12 @@ def _module_buttons(active_module):
         {'label': 'Drivers', 'url': reverse('driver_dashboard'), 'key': 'drivers'},
         {'label': 'Conductors', 'url': reverse('conductor_dashboard'), 'key': 'conductors'},
         {'label': 'Manage Routes', 'url': reverse('route_dashboard'), 'key': 'manage_routes'},
+        {'label': 'View Timetable', 'url': reverse('timetable_dashboard'), 'key': 'view_timetable'},
         {'label': 'Scheduling', 'url': '#', 'key': 'scheduling'},
         {'label': 'Fuel Usage', 'url': '#', 'key': 'fuel_usage'},
         {'label': 'Maintenance', 'url': '#', 'key': 'maintenance'},
         {'label': 'Current Trips', 'url': '#', 'key': 'current_trips'},
-        {'label': 'View Timetable', 'url': '#', 'key': 'view_timetable'},
+        
     ]
     for item in items:
         item['is_active'] = item['key'] == active_module
@@ -394,6 +395,45 @@ def manage_route_stops(request, route_id):
         'module_buttons': _module_buttons('manage_routes'),
     }
     return render(request, 'core/manage_route_stops.html', context)
+
+def timetable_dashboard(request):
+    if request.method == 'POST' and 'delete_timetable' in request.POST:
+        timetable_id = request.POST.get('timetable_id')
+        timetable = get_object_or_404(TimeTable, id=timetable_id)
+        timetable.delete()
+        return redirect('timetable_dashboard')
+
+    timetables = TimeTable.objects.select_related('route').order_by(
+        'route__route_number', 'day_of_week', 'departure_time'
+    )
+    routes_covered = timetables.values('route').distinct().count()
+
+    context = {
+        'timetables': timetables,
+        'total_timetables': timetables.count(),
+        'outbound_count': timetables.filter(direction='OUTBOUND').count(),
+        'return_count': timetables.filter(direction='RETURN').count(),
+        'routes_count': routes_covered,
+        'module_buttons': _module_buttons('view_timetable'),
+    }
+    return render(request, 'core/timetable_dashboard.html', context)
+
+
+def add_timetable(request):
+    if request.method == 'POST':
+        form = TimeTableForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('timetable_dashboard')
+    else:
+        form = TimeTableForm()
+
+    return render(
+        request,
+        'core/add_timetable.html',
+        {'form': form, 'module_buttons': _module_buttons('view_timetable')},
+    )
+
 
 def add_stop(request, route_id):
     route = get_object_or_404(Route, id=route_id)

@@ -17,4 +17,6 @@ urlpatterns = [
     path('drivers/<int:driver_id>/manage/', views.manage_driver, name='manage_driver'),
     path('conductors/add/', views.add_conductor, name='add_conductor'),
     path('conductors/<int:conductor_id>/manage/', views.manage_conductor, name='manage_conductor'),
+    path('timetables/', views.timetable_dashboard, name='timetable_dashboard'),
+    path('timetables/add/', views.add_timetable, name='add_timetable'),
 ]
