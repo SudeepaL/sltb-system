@@ -96,6 +96,7 @@ class Bus(models.Model):
     depot = models.CharField(max_length=50)
     current_fuel_liters = models.FloatField(default=0)
     fuel_efficiency_km_per_liter = models.FloatField(default=4.0)
+    mileage = models.PositiveIntegerField(default=0, help_text='Current mileage of the bus in km')
     image = models.ImageField(upload_to='bus_images/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

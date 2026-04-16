@@ -24,4 +24,5 @@ urlpatterns = [
     path('scheduling/outbound-for-return/', views.get_outbound_for_return, name='get_outbound_for_return'),
     path('maintenance/', views.maintenance_dashboard, name='maintenance_dashboard'),
     path('maintenance/add/', views.add_maintenance, name='add_maintenance'),
+    path('maintenance/bus-mileage/', views.get_bus_mileage, name='get_bus_mileage'),
 ]

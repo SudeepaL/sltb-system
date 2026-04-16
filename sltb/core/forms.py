@@ -15,6 +15,7 @@ class BusForm(forms.ModelForm):
             'depot',
             'current_fuel_liters',
             'fuel_efficiency_km_per_liter',
+            'mileage',
             'image',
         ]
 
@@ -35,6 +36,10 @@ class DriverForm(forms.ModelForm):
             'driver_registration_date',
             'driver_id_image',
         ]
+        widgets = {
+            'dob': forms.DateInput(attrs={'type': 'date'}),
+            'driver_registration_date': forms.DateInput(attrs={'type': 'date'}),
+        }
 
 class ConductorForm(forms.ModelForm):
     class Meta:
@@ -52,6 +57,10 @@ class ConductorForm(forms.ModelForm):
             'conductor_id_image',
         
         ]
+        widgets = {
+            'c_dob': forms.DateInput(attrs={'type': 'date'}),
+            'conductor_registration_date': forms.DateInput(attrs={'type': 'date'}),
+        }
 
 
 class RouteForm(forms.ModelForm):
@@ -96,6 +105,9 @@ class ScheduleForm(forms.ModelForm):
             'date',
             'status',
         ]
+        widgets = {
+            'date': forms.DateInput(attrs={'type': 'date'}),
+        }
 
 
 class BusMaintenanceForm(forms.ModelForm):
@@ -109,3 +121,6 @@ class BusMaintenanceForm(forms.ModelForm):
             'maintenance_details',
             'next_service_due_mileage',
         ]
+        widgets = {
+            'service_date': forms.DateInput(attrs={'type': 'date'}),
+        }

@@ -496,23 +496,59 @@ def add_schedule(request):
 
 
 def maintenance_dashboard(request):
-    if request.method == 'POST' and 'delete_maintenance' in request.POST:
-        record_id = request.POST.get('record_id')
-        record = get_object_or_404(BusMaintenance, id=record_id)
-        record.delete()
-        return redirect('maintenance_dashboard')
+    buses = Bus.objects.order_by('bus_code')
+    selected_bus_code = request.GET.get('bus_code', '')
 
-    maintenance_records = BusMaintenance.objects.select_related('bus').order_by(
-        '-service_date', '-created_at'
-    )
+    selected_bus = None
+    service_history = []
+    if selected_bus_code:
+        selected_bus = Bus.objects.filter(bus_code=selected_bus_code).first()
+        if selected_bus:
+            service_history = BusMaintenance.objects.filter(bus=selected_bus).order_by('-service_date', '-created_at')
 
+    if request.method == 'POST':
+        if 'delete_maintenance' in request.POST:
+            record_id = request.POST.get('record_id')
+            record = get_object_or_404(BusMaintenance, id=record_id)
+            bus_code = record.bus.bus_code
+            record.delete()
+            return redirect(f"{reverse('maintenance_dashboard')}?bus_code={bus_code}")
+
+        if 'save_maintenance' in request.POST:
+            bus_code = request.POST.get('bus_code_hidden', '')
+            bus = Bus.objects.filter(bus_code=bus_code).first()
+            if bus:
+                BusMaintenance.objects.create(
+                    bus=bus,
+                    service_date=request.POST.get('service_date'),
+                    mileage=request.POST.get('mileage') or 0,
+                    service_history=request.POST.get('service_history', ''),
+                    maintenance_details=request.POST.get('maintenance_details', ''),
+                    next_service_due_mileage=request.POST.get('next_service_due_mileage') or None,
+                )
+            return redirect(f"{reverse('maintenance_dashboard')}?bus_code={bus_code}")
+
+    maintenance_records = BusMaintenance.objects.select_related('bus').order_by('-service_date', '-created_at')
     context = {
+        'buses': buses,
+        'selected_bus': selected_bus,
+        'selected_bus_code': selected_bus_code,
+        'service_history': service_history,
         'maintenance_records': maintenance_records,
         'total_records': maintenance_records.count(),
         'due_records': maintenance_records.filter(next_service_due_mileage__isnull=False).count(),
         'module_buttons': _module_buttons('maintenance'),
     }
     return render(request, 'core/maintenance_dashboard.html', context)
+
+
+def get_bus_mileage(request):
+    bus_code = request.GET.get('bus_code', '')
+    try:
+        bus = Bus.objects.get(bus_code=bus_code)
+        return JsonResponse({'mileage': bus.mileage, 'found': True})
+    except Bus.DoesNotExist:
+        return JsonResponse({'mileage': 0, 'found': False})
 
 
 def get_outbound_for_return(request):
