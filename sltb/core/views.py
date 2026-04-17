@@ -11,10 +11,10 @@ def _module_buttons(active_module):
         {'label': 'Conductors', 'url': reverse('conductor_dashboard'), 'key': 'conductors'},
         {'label': 'Manage Routes', 'url': reverse('route_dashboard'), 'key': 'manage_routes'},
         {'label': 'View Timetable', 'url': reverse('timetable_dashboard'), 'key': 'view_timetable'},
-         {'label': 'Scheduling', 'url': reverse('scheduling_dashboard'), 'key': 'scheduling'},
+        {'label': 'Scheduling', 'url': reverse('scheduling_dashboard'), 'key': 'scheduling'},
         {'label': 'Fuel Usage', 'url': '#', 'key': 'fuel_usage'},
         {'label': 'Maintenance', 'url': reverse('maintenance_dashboard'), 'key': 'maintenance'},
-        {'label': 'Current Trips', 'url': '#', 'key': 'current_trips'},
+        {'label': 'Current Trips', 'url': reverse('bus_trip_welcome'), 'key': 'current_trips'},
         
     ]
     for item in items:
@@ -655,3 +655,63 @@ def add_maintenance(request):
         'core/add_maintenance.html',
         {'form': form, 'module_buttons': _module_buttons('maintenance')},
     )
+
+def bus_trip_welcome(request):
+    buses = Bus.objects.order_by('bus_code')
+    context = {
+        'buses': buses,
+        'module_buttons': _module_buttons('current_trips'),
+    }
+    return render(request, 'core/bus_trip_welcome.html', context)
+
+
+def driver_conductor_confirmation(request, bus_id):
+    bus = get_object_or_404(Bus, id=bus_id)
+    error_message = ''
+
+    if request.method == 'POST':
+        driver_nic = request.POST.get('driver_nic', '').strip()
+        conductor_nic = request.POST.get('conductor_nic', '').strip()
+
+        has_valid_assignment = Schedule.objects.filter(
+            bus=bus,
+            status='SCHEDULED',
+            driver__nic_number=driver_nic,
+            conductor__c_nic_number=conductor_nic,
+        ).exists()
+
+        if has_valid_assignment:
+            request.session[f'bus_trip_access_{bus.id}'] = True
+            return redirect('current_schedules', bus_id=bus.id)
+
+        error_message = (
+            'Access denied. Driver and Conductor NICs do not match a scheduled assignment for this bus.'
+        )
+
+    context = {
+        'bus': bus,
+        'error_message': error_message,
+        'module_buttons': _module_buttons('current_trips'),
+    }
+    return render(request, 'core/driver_conductor_confirmation.html', context)
+
+
+def current_schedules(request, bus_id):
+    bus = get_object_or_404(Bus, id=bus_id)
+
+    if not request.session.get(f'bus_trip_access_{bus.id}'):
+        return redirect('driver_conductor_confirmation', bus_id=bus.id)
+
+    schedules = Schedule.objects.select_related(
+        'timetable__route', 'driver', 'conductor'
+    ).filter(
+        bus=bus,
+        status='SCHEDULED',
+    ).order_by('date', 'timetable__departure_time')
+
+    context = {
+        'bus': bus,
+        'schedules': schedules,
+        'module_buttons': _module_buttons('current_trips'),
+    }
+    return render(request, 'core/current_schedules.html', context)

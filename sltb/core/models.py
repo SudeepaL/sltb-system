@@ -277,8 +277,16 @@ class Trip(models.Model):
     ]
 
     t_status = models.CharField(max_length=20, choices=T_STATUS_CHOICES, default='NOT_STARTED')
-    actual_departure_time = models.DateTimeField(null=True, blank=True)
-    actual_arrival_time = models.DateTimeField(null=True, blank=True)
+    actual_departure_time = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Actual departure date and time recorded when the trip starts.',
+    )
+    actual_arrival_time = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Actual arrival date and time recorded when the trip completes.',
+    )
     delay_reason = models.TextField(null=True, blank=True)
 
     def start_trip(self):

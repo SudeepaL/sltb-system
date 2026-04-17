@@ -26,4 +26,7 @@ urlpatterns = [
     path('maintenance/add/', views.add_maintenance, name='add_maintenance'),
     path('maintenance/bus-mileage/', views.get_bus_mileage, name='get_bus_mileage'),
     path('maintenance/complete/<int:record_id>/', views.complete_maintenance, name='complete_maintenance'),
+    path('trips/', views.bus_trip_welcome, name='bus_trip_welcome'),
+    path('trips/bus/<int:bus_id>/confirmation/', views.driver_conductor_confirmation, name='driver_conductor_confirmation'),
+    path('trips/bus/<int:bus_id>/current-schedules/', views.current_schedules, name='current_schedules'),
 ]
