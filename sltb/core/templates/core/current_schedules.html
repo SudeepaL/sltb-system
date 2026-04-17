@@ -39,6 +39,161 @@
             text-decoration: none;
             display: inline-block;
         }
+
+        /* ── Fuel Section ─────────────────────────────── */
+        .fuel-section {
+            max-width: 1000px;
+            margin: 0 auto 28px;
+            background: #fff;
+            border: 1.5px solid #d0d8ee;
+            border-radius: 14px;
+            padding: 24px 28px;
+            box-shadow: 0 2px 12px rgba(10,45,118,0.07);
+        }
+        .fuel-section-title {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0a2b76;
+            border-bottom: 3px solid #0a4db2;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .fuel-layout {
+            display: grid;
+            grid-template-columns: 200px 1fr 260px;
+            gap: 28px;
+            align-items: center;
+        }
+        .bus-tank-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .bus-tank-container {
+            position: relative;
+            width: 160px;
+            height: 240px;
+        }
+        .bubble {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.45);
+            animation: rise linear infinite;
+            pointer-events: none;
+        }
+        @keyframes rise {
+            0%   { transform: translateY(0) scale(1); opacity:.7; }
+            100% { transform: translateY(-200px) scale(0.4); opacity:0; }
+        }
+        @keyframes flash-border {
+            0%,100% { border-color: #e03a3a; }
+            50% { border-color: #ff7979; }
+        }
+        .bus-fuel-label {
+            font-size: 14px;
+            font-weight: 700;
+            color: #0a2b76;
+            text-align: center;
+        }
+        .fuel-info {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .fuel-stat {
+            background: #f4f7ff;
+            border: 1.5px solid #d0d8ee;
+            border-radius: 10px;
+            padding: 12px 16px;
+        }
+        .fuel-stat .fs-val {
+            font-size: 24px;
+            font-weight: 800;
+            color: #0a4db2;
+        }
+        .fuel-stat .fs-val.warn { color: #e03a3a; }
+        .fuel-stat .fs-lbl {
+            font-size: 12px;
+            color: #888;
+            margin-top: 2px;
+        }
+        .low-warn-banner {
+            background: linear-gradient(90deg,#ffeaea,#ffe0e0);
+            border: 1.5px solid #e03a3a;
+            border-radius: 10px;
+            padding: 11px 14px;
+            color: #b71c1c;
+            font-weight: 700;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: flash-border 1.2s ease-in-out infinite;
+        }
+        .refuel-panel {
+            background: #f4f7ff;
+            border: 1.5px solid #c0ccee;
+            border-radius: 12px;
+            padding: 20px 18px;
+        }
+        .refuel-panel h3 {
+            font-size: 16px;
+            font-weight: 800;
+            color: #0a2b76;
+            margin-bottom: 14px;
+        }
+        .refuel-panel label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #444;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .refuel-panel input[type="number"] {
+            width: 100%;
+            border: 1.5px solid #c0c8e0;
+            border-radius: 8px;
+            padding: 9px 12px;
+            font-size: 14px;
+            background: #fff;
+            margin-bottom: 12px;
+            outline: none;
+            transition: border-color .2s;
+        }
+        .refuel-panel input:focus { border-color: #0a4db2; }
+        .refuel-btn {
+            width: 100%;
+            background: #007a3d;
+            color: #fff;
+            border: none;
+            border-radius: 9px;
+            padding: 11px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background .2s, transform .15s;
+        }
+        .refuel-btn:hover { background: #009b4e; transform: scale(1.02); }
+        .depot-info {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+        .depot-info strong { color: #0a4db2; }
+        .refuel-msg {
+            padding: 9px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 14px;
+        }
+        .refuel-msg.success { background: #e6f9f0; border: 1.5px solid #27ae60; color: #1a7a42; }
+        .refuel-msg.error   { background: #fdf0f0; border: 1.5px solid #e03a3a; color: #b71c1c; }
     </style>
 </head>
 <body>
@@ -53,25 +208,218 @@
     </nav>
 </header>
 
-<main class="schedules-shell shadow-sm">
-    <h1 class="panel-title"><strong>Current Schedules</strong></h1>
-    <p><strong>Bus Code:</strong> {{ bus.bus_code }}</p>
+<main>
+    <!-- ── Schedules ──────────────────────────────────── -->
+    <div class="schedules-shell shadow-sm">
+        <h1 class="panel-title"><strong>Current Schedules</strong></h1>
+        <p><strong>Bus Code:</strong> {{ bus.bus_code }}</p>
 
-    {% for schedule in schedules %}
-        <article class="schedule-card">
-            <div class="schedule-route">
-                {{ schedule.timetable.route.start_location }} → {{ schedule.timetable.route.end_location }}
+        {% for schedule in schedules %}
+            <article class="schedule-card">
+                <div class="schedule-route">
+                    {{ schedule.timetable.route.start_location }} → {{ schedule.timetable.route.end_location }}
+                </div>
+                <div><strong>Date:</strong> {{ schedule.date }}</div>
+                <div><strong>Departure:</strong> {{ schedule.timetable.departure_time }} | <strong>Arrival:</strong> {{ schedule.timetable.arrival_time }}</div>
+                <div><strong>Trip Type:</strong> {{ schedule.timetable.get_direction_display }}</div>
+                <div><strong>Driver:</strong> {{ schedule.driver.driver_name }} | <strong>Conductor:</strong> {{ schedule.conductor.conductor_name }}</div>
+                <div><strong>Status:</strong> {{ schedule.get_status_display }}</div>
+                <a class="select-btn" href="{% url 'start_trip' schedule.id %}">Select Schedule</a>
+            </article>
+        {% empty %}
+            <p>No scheduled trips found for this bus.</p>
+        {% endfor %}
+    </div>
+
+    <!-- ── Fuel Status & Refuel ───────────────────────── -->
+    <div class="fuel-section shadow-sm">
+        <div class="fuel-section-title">
+            ⛽ Bus Fuel Status
+            {% if low_fuel_warning %}
+                <span style="font-size:13px;background:#e03a3a;color:#fff;border-radius:20px;padding:3px 12px;font-weight:700;">⚠ LOW FUEL</span>
+            {% endif %}
+        </div>
+
+        {% if refuel_success %}
+        <div class="refuel-msg success">✅ {{ refuel_success }}</div>
+        {% endif %}
+        {% if refuel_error %}
+        <div class="refuel-msg error">❌ {{ refuel_error }}</div>
+        {% endif %}
+
+        <div class="fuel-layout">
+            <!-- Animated SVG tank -->
+            <div class="bus-tank-wrap">
+                <div class="bus-tank-container" id="busTankContainer">
+                    <svg id="busTankSvg" viewBox="0 0 160 240" width="160" height="240"
+                         xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:1;">
+                        <defs>
+                            <linearGradient id="busBodyGrad" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stop-color="#b0c4de"/>
+                                <stop offset="40%" stop-color="#dce8f5"/>
+                                <stop offset="100%" stop-color="#8facc8"/>
+                            </linearGradient>
+                            <linearGradient id="busFuelGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#f5c518"/>
+                                <stop offset="100%" stop-color="#e07b00"/>
+                            </linearGradient>
+                            <linearGradient id="busFuelLowGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#ff7675"/>
+                                <stop offset="100%" stop-color="#d63031"/>
+                            </linearGradient>
+                            <clipPath id="busTankClip">
+                                <rect x="20" y="30" width="120" height="180" rx="16" ry="16"/>
+                            </clipPath>
+                        </defs>
+                        <rect x="20" y="30" width="120" height="180" rx="16" ry="16"
+                              fill="url(#busBodyGrad)" stroke="#7a9cbf" stroke-width="2.5"/>
+                        <rect id="busFuelRect" x="21" y="130" width="118" height="79"
+                              clip-path="url(#busTankClip)" fill="url(#busFuelGrad)"/>
+                        <g clip-path="url(#busTankClip)">
+                            <path id="busWavePath"
+                                  d="M21,130 Q60,123 80,130 Q110,137 139,130 L139,130 L21,130 Z"
+                                  fill="rgba(255,255,255,0.3)"/>
+                        </g>
+                        <rect x="30" y="38" width="10" height="155" rx="5"
+                              fill="rgba(255,255,255,0.22)"/>
+                        <g stroke="#5a7a9a" stroke-width="1.2" font-size="8" fill="#4a6a8a"
+                           font-family="Arial,sans-serif">
+                            <line x1="140" y1="42" x2="148" y2="42"/>
+                            <text x="150" y="46">100%</text>
+                            <line x1="140" y1="85" x2="148" y2="85"/>
+                            <text x="150" y="89">75%</text>
+                            <line x1="140" y1="120" x2="148" y2="120"/>
+                            <text x="150" y="124">50%</text>
+                            <line x1="140" y1="165" x2="148" y2="165"/>
+                            <text x="150" y="169">25%</text>
+                            <line x1="140" y1="208" x2="148" y2="208"/>
+                            <text x="150" y="212">0%</text>
+                            <line x1="21" y1="193" x2="139" y2="193" stroke="#e03a3a"
+                                  stroke-width="1.2" stroke-dasharray="4,3" opacity="0.8"/>
+                        </g>
+                        <text x="25" y="191" font-size="7" fill="#e03a3a"
+                              font-family="Arial,sans-serif" font-weight="bold">LOW — 40L</text>
+                        <rect x="62" y="18" width="36" height="16" rx="6"
+                              fill="#8facc8" stroke="#7a9cbf" stroke-width="1.5"/>
+                        <rect x="70" y="10" width="20" height="12" rx="4"
+                              fill="#7a9cbf" stroke="#6a8caf" stroke-width="1.2"/>
+                        <text id="busPctLabel" x="80" y="138" text-anchor="middle"
+                              font-size="22" font-weight="bold" fill="white"
+                              font-family="Arial,sans-serif"
+                              style="filter:drop-shadow(0 2px 3px rgba(0,0,0,0.3))">50%</text>
+                    </svg>
+                    <div id="busBubbleContainer" style="position:absolute;left:21px;top:30px;width:118px;height:180px;overflow:hidden;border-radius:13px;pointer-events:none;z-index:2;"></div>
+                </div>
+                <div class="bus-fuel-label">Bus {{ bus.bus_code }}</div>
             </div>
-            <div><strong>Date:</strong> {{ schedule.date }}</div>
-            <div><strong>Departure:</strong> {{ schedule.timetable.departure_time }} | <strong>Arrival:</strong> {{ schedule.timetable.arrival_time }}</div>
-            <div><strong>Trip Type:</strong> {{ schedule.timetable.get_direction_display }}</div>
-            <div><strong>Driver:</strong> {{ schedule.driver.driver_name }} | <strong>Conductor:</strong> {{ schedule.conductor.conductor_name }}</div>
-            <div><strong>Status:</strong> {{ schedule.get_status_display }}</div>
-            <a class="select-btn" href="{% url 'start_trip' schedule.id %}">Select Schedule</a>
-        </article>
-    {% empty %}
-        <p>No scheduled trips found for this bus.</p>
-    {% endfor %}
+
+            <!-- Stats -->
+            <div class="fuel-info">
+                <div class="fuel-stat">
+                    <div class="fs-val {% if bus.current_fuel_liters < 40 %}warn{% endif %}">
+                        {{ bus.current_fuel_liters|floatformat:1 }} L
+                    </div>
+                    <div class="fs-lbl">Current Fuel</div>
+                </div>
+                <div class="fuel-stat">
+                    <div class="fs-val">{{ max_bus_capacity|floatformat:0 }} L</div>
+                    <div class="fs-lbl">Tank Capacity</div>
+                </div>
+                <div class="fuel-stat">
+                    <div class="fs-val">{{ bus_fuel_pct }}%</div>
+                    <div class="fs-lbl">Fill Level</div>
+                </div>
+                {% if low_fuel_warning %}
+                <div class="low-warn-banner">
+                    🚨 Fuel below 40 L — Refuel recommended before next trip!
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Refuel panel -->
+            <div class="refuel-panel">
+                <h3>🔄 Refuel This Bus</h3>
+                <form method="post" action="{% url 'bus_refuel' bus.id %}">
+                    {% csrf_token %}
+                    <label for="refuel_amount">Amount to Add (Litres)</label>
+                    <input type="number" id="refuel_amount" name="refuel_amount"
+                           min="1" max="200" step="0.1"
+                           placeholder="Enter litres…" required>
+                    <button type="submit" class="refuel-btn">⛽ Refuel Bus</button>
+                </form>
+                <div class="depot-info">
+                    Depot available: <strong>{{ tank.current_level_liters|floatformat:0 }} L</strong>
+                </div>
+            </div>
+        </div>
+    </div>
 </main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const BUS_FUEL_PCT  = {{ bus_fuel_pct }};
+const BUS_FUEL      = {{ bus.current_fuel_liters }};
+const BUS_MAX       = {{ max_bus_capacity }};
+const LOW_THRESHOLD = 40;
+const REFUEL_OK     = "{{ refuel_success|escapejs }}" !== "";
+
+function animateBusTank(targetPct, duration) {
+    duration = duration || 1500;
+    const fuelRect = document.getElementById('busFuelRect');
+    const wavePath = document.getElementById('busWavePath');
+    const pctLabel = document.getElementById('busPctLabel');
+    const tankTop = 32, tankBottom = 208, tankHeight = tankBottom - tankTop;
+    const clampedPct = Math.max(0, Math.min(100, targetPct));
+    const startY  = parseFloat(fuelRect.getAttribute('y')) || tankBottom;
+    const targetY = tankBottom - (clampedPct / 100) * tankHeight;
+    let start = null;
+    function step(ts) {
+        if (!start) start = ts;
+        const progress = Math.min((ts - start) / duration, 1);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        const currentY = startY + (targetY - startY) * ease;
+        fuelRect.setAttribute('y', currentY);
+        fuelRect.setAttribute('height', tankBottom - currentY);
+        const isLow = clampedPct < (LOW_THRESHOLD / BUS_MAX * 100);
+        fuelRect.setAttribute('fill', isLow ? 'url(#busFuelLowGrad)' : 'url(#busFuelGrad)');
+        const wX = 21, wW = 118, amp = 3;
+        wavePath.setAttribute('d',
+            `M${wX},${currentY} Q${wX+wW*0.25},${currentY-amp} ${wX+wW*0.5},${currentY} ` +
+            `Q${wX+wW*0.75},${currentY+amp} ${wX+wW},${currentY} L${wX+wW},${currentY} L${wX},${currentY} Z`
+        );
+        const labelY = Math.max(currentY + 26, tankTop + 26);
+        pctLabel.setAttribute('y', labelY);
+        pctLabel.textContent = Math.round(clampedPct) + '%';
+        if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+}
+
+function spawnBusBubble() {
+    const container = document.getElementById('busBubbleContainer');
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    const size = 5 + Math.random() * 9;
+    const leftPct = 10 + Math.random() * 80;
+    const dur = 2 + Math.random() * 2.5;
+    const delay = Math.random() * 1.5;
+    b.style.cssText = `width:${size}px;height:${size}px;left:${leftPct}%;bottom:0;animation-duration:${dur}s;animation-delay:${delay}s;`;
+    container.appendChild(b);
+    setTimeout(() => b.remove(), (dur + delay) * 1000 + 200);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    if (REFUEL_OK) {
+        animateBusTank(100, 800);
+        for (let i = 0; i < 15; i++) setTimeout(spawnBusBubble, i * 80);
+        setTimeout(() => animateBusTank(BUS_FUEL_PCT, 1000), 1400);
+    } else {
+        animateBusTank(BUS_FUEL_PCT, 1600);
+    }
+    if (BUS_FUEL > 0) {
+        setInterval(() => { if (Math.random() < 0.5) spawnBusBubble(); }, 700);
+    }
+});
+</script>
 </body>
 </html>

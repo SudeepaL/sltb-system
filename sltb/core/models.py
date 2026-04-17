@@ -461,6 +461,23 @@ class DepotFuelTank(models.Model):
         return f"Depot Tank: {self.current_level_liters:.0f}L / {self.max_capacity_liters:.0f}L"
 
 
+#Bus refuel log (tracks when a bus is refuelled from depot)
+class BusRefuelLog(models.Model):
+    bus = models.ForeignKey('Bus', on_delete=models.CASCADE, related_name='refuel_logs')
+    amount_liters = models.FloatField()
+    fuel_before = models.FloatField()
+    fuel_after = models.FloatField()
+    depot_level_before = models.FloatField()
+    depot_level_after = models.FloatField()
+    refueled_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ['-refueled_at']
+
+    def __str__(self):
+        return f"{self.bus.bus_code} refueled {self.amount_liters:.0f}L on {self.refueled_at:%Y-%m-%d %H:%M}"
+
+
 #Bus maintenance module
 class BusMaintenance(models.Model):
     STATUS_CHOICES = [

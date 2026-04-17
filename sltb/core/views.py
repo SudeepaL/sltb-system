@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.utils import timezone
 from datetime import datetime, timedelta
 from .forms import BusForm, BusMaintenanceForm, ConductorForm, DriverForm, RouteForm, ScheduleForm, StopForm, TimeTableForm
-from .models import Bus, BusMaintenance, Conductor, DepotFuelTank, Driver, Route, Schedule, RouteStop, Stop, TimeTable, Trip
+from .models import Bus, BusMaintenance, BusRefuelLog, Conductor, DepotFuelTank, Driver, Route, Schedule, RouteStop, Stop, TimeTable, Trip
 
 def _module_buttons(active_module):
     items = [
@@ -713,10 +713,22 @@ def current_schedules(request, bus_id):
         status='SCHEDULED',
     ).order_by('date', 'timetable__departure_time')
 
+    tank = DepotFuelTank.get_tank()
+    refuel_error = request.session.pop('refuel_error', None)
+    refuel_success = request.session.pop('refuel_success', None)
+    max_bus_capacity = 200.0
+    bus_fuel_pct = min(100, (bus.current_fuel_liters / max_bus_capacity) * 100)
+
     context = {
         'bus': bus,
         'schedules': schedules,
         'module_buttons': _module_buttons('current_trips'),
+        'tank': tank,
+        'bus_fuel_pct': round(bus_fuel_pct, 1),
+        'max_bus_capacity': max_bus_capacity,
+        'refuel_error': refuel_error,
+        'refuel_success': refuel_success,
+        'low_fuel_warning': bus.current_fuel_liters < 40,
     }
     return render(request, 'core/current_schedules.html', context)
 
@@ -792,12 +804,29 @@ def fuel_dashboard(request):
     fill_pct = tank.percentage()
     fuel_status = 'CRITICAL – LOW FUEL' if tank.is_low() else 'Normal'
 
+    # Bus refuel logs for log sheet + graph
+    refuel_logs = BusRefuelLog.objects.select_related('bus').order_by('-refueled_at')[:100]
+
+    # Per-bus summary for graph
+    import json
+    from collections import defaultdict
+    bus_totals = defaultdict(float)
+    for log in refuel_logs:
+        bus_totals[log.bus.bus_code] += log.amount_liters
+    bus_refuel_summary = [{'bus_code': k, 'total': round(v, 1)} for k, v in sorted(bus_totals.items())]
+
+    # All buses with low fuel (< 40L) for notifications
+    low_fuel_buses = Bus.objects.filter(current_fuel_liters__lt=40).order_by('bus_code')
+
     context = {
         'tank': tank,
         'fill_pct': fill_pct,
         'fuel_status': fuel_status,
         'just_refilled': just_refilled,
         'module_buttons': _module_buttons('fuel_usage'),
+        'refuel_logs': refuel_logs,
+        'bus_refuel_summary_json': json.dumps(bus_refuel_summary),
+        'low_fuel_buses': low_fuel_buses,
     }
     return render(request, 'core/fuel_dashboard.html', context)
 
@@ -828,3 +857,74 @@ def fuel_refill(request):
             request.session['just_refilled'] = True
 
     return redirect('fuel_dashboard')
+
+
+def bus_refuel(request, bus_id):
+    """Refuel a specific bus from the depot tank. Called from current_schedules page."""
+    import json
+    from django.http import JsonResponse
+
+    bus = get_object_or_404(Bus, id=bus_id)
+    tank = DepotFuelTank.get_tank()
+
+    if request.method == 'POST':
+        try:
+            amount = float(request.POST.get('refuel_amount', 0))
+        except (ValueError, TypeError):
+            amount = 0
+
+        error = None
+        if amount <= 0:
+            error = 'Please enter a valid fuel amount.'
+        elif amount > tank.current_level_liters:
+            error = f'Insufficient depot fuel. Only {tank.current_level_liters:.0f} L available.'
+        else:
+            max_bus_capacity = 200.0  # typical bus tank capacity
+            space_available = max_bus_capacity - bus.current_fuel_liters
+            if amount > space_available:
+                error = f'Bus tank can only accept {space_available:.0f} L more (max capacity {max_bus_capacity:.0f} L).'
+
+        if error:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': False, 'error': error})
+            request.session['refuel_error'] = error
+            return redirect('current_schedules', bus_id=bus.id)
+
+        # Perform the refuel
+        depot_before = tank.current_level_liters
+        bus_before = bus.current_fuel_liters
+
+        # Deduct from depot
+        tank.current_level_liters = max(0, tank.current_level_liters - amount)
+        tank.save(update_fields=['current_level_liters', 'updated_at'])
+
+        # Add to bus
+        bus.current_fuel_liters += amount
+        bus.save(update_fields=['current_fuel_liters'])
+
+        # Log the refuel
+        BusRefuelLog.objects.create(
+            bus=bus,
+            amount_liters=amount,
+            fuel_before=bus_before,
+            fuel_after=bus.current_fuel_liters,
+            depot_level_before=depot_before,
+            depot_level_after=tank.current_level_liters,
+        )
+
+        # Also create a FuelTransaction record
+        from .models import FuelTransaction
+        FuelTransaction.objects.create(bus=bus, transaction_type='FILL', amount_liters=amount)
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True,
+                'bus_fuel': round(bus.current_fuel_liters, 1),
+                'depot_fuel': round(tank.current_level_liters, 1),
+                'depot_pct': round(tank.percentage(), 1),
+            })
+
+        request.session['refuel_success'] = f'Bus {bus.bus_code} refuelled with {amount:.0f} L.'
+        return redirect('current_schedules', bus_id=bus.id)
+
+    return redirect('current_schedules', bus_id=bus.id)
