@@ -1,0 +1,726 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuel Module – SLTB</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
+    <style>
+        /* ── Notification Bell ─────────────────────────── */
+        .top-area {
+            position: relative;
+        }
+        .notification-area {
+            position: absolute;
+            top: 50%;
+            right: 22px;
+            transform: translateY(-50%);
+            z-index: 100;
+        }
+        .bell-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            padding: 4px;
+        }
+        .bell-icon {
+            width: 34px;
+            height: 34px;
+            filter: drop-shadow(0 1px 3px rgba(0,0,0,0.35));
+        }
+        .badge-dot {
+            position: absolute;
+            top: 2px; right: 2px;
+            width: 13px; height: 13px;
+            background: #ffdd00;
+            border-radius: 50%;
+            border: 2px solid #F00808;
+            display: none;
+            animation: pulse-dot 1.4s ease-in-out infinite;
+        }
+        @keyframes pulse-dot {
+            0%,100% { transform: scale(1); opacity:1; }
+            50% { transform: scale(1.35); opacity:.7; }
+        }
+        .notif-panel {
+            position: absolute;
+            top: calc(100% + 10px);
+            right: 0;
+            width: 310px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+            display: none;
+            z-index: 200;
+            overflow: hidden;
+        }
+        .notif-panel.open { display: block; }
+        .notif-header {
+            background: #0a4db2;
+            color: #fff;
+            font-weight: 700;
+            font-size: 14px;
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .notif-list { max-height: 280px; overflow-y: auto; }
+        .notif-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+        .notif-item:last-child { border-bottom: none; }
+        .notif-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+        .notif-text strong { display: block; font-size: 13px; color: #222; }
+        .notif-text span { color: #777; font-size: 12px; }
+        .notif-empty {
+            padding: 20px 16px;
+            text-align: center;
+            color: #aaa;
+            font-size: 13px;
+        }
+
+        /* ── Fuel Page Layout ──────────────────────────── */
+        .fuel-page {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 22px;
+            padding: 28px 22px;
+            align-items: start;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* ── Tank Panel ────────────────────────────────── */
+        .tank-panel {
+            background: #efefef;
+            border: 1px solid #d0d0d0;
+            border-radius: 14px;
+            padding: 28px 30px 30px;
+        }
+        .tank-panel h2 {
+            font-size: 26px;
+            font-weight: 800;
+            color: #0a2b76;
+            border-bottom: 3px solid #0a4db2;
+            padding-bottom: 10px;
+            margin-bottom: 24px;
+        }
+
+        /* ── SVG Fuel Tank animation ───────────────────── */
+        .tank-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 18px;
+        }
+        .tank-svg-container {
+            position: relative;
+            width: 260px;
+            height: 380px;
+        }
+        /* Bubbles */
+        .bubble {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.45);
+            animation: rise linear infinite;
+            pointer-events: none;
+        }
+        @keyframes rise {
+            0%   { transform: translateY(0) scale(1); opacity:.7; }
+            100% { transform: translateY(-320px) scale(0.4); opacity:0; }
+        }
+
+        /* ── Level stats ───────────────────────────────── */
+        .level-stats {
+            display: flex;
+            gap: 28px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .stat-box {
+            background: #fff;
+            border: 1.5px solid #d0d8ee;
+            border-radius: 10px;
+            padding: 12px 20px;
+            text-align: center;
+            min-width: 120px;
+        }
+        .stat-box .val {
+            font-size: 24px;
+            font-weight: 800;
+            color: #0a4db2;
+        }
+        .stat-box .lbl {
+            font-size: 12px;
+            color: #777;
+            margin-top: 2px;
+        }
+        .stat-box.warn .val { color: #e03a3a; }
+
+        /* ── Low alert banner ──────────────────────────── */
+        .low-alert {
+            display: none;
+            background: linear-gradient(90deg,#ffeaea,#ffe0e0);
+            border: 1.5px solid #e03a3a;
+            border-radius: 10px;
+            padding: 12px 18px;
+            color: #b71c1c;
+            font-weight: 700;
+            font-size: 14px;
+            text-align: center;
+            animation: flash-border 1.2s ease-in-out infinite;
+        }
+        @keyframes flash-border {
+            0%,100% { border-color: #e03a3a; }
+            50% { border-color: #ff7979; }
+        }
+
+        /* ── Refill Panel ──────────────────────────────── */
+        .refill-panel {
+            background: #efefef;
+            border: 1px solid #d0d0d0;
+            border-radius: 14px;
+            padding: 24px 22px;
+        }
+        .refill-panel h2 {
+            font-size: 22px;
+            font-weight: 800;
+            color: #0a2b76;
+            border-bottom: 3px solid #0a4db2;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .refill-panel label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+            display: block;
+        }
+        .refill-panel input[type="number"],
+        .refill-panel input[type="date"] {
+            width: 100%;
+            border: 1.5px solid #c0c8e0;
+            border-radius: 8px;
+            padding: 9px 12px;
+            font-size: 14px;
+            background: #fff;
+            margin-bottom: 14px;
+            outline: none;
+            transition: border-color .2s;
+        }
+        .refill-panel input:focus { border-color: #0a4db2; }
+
+        .refill-btn {
+            width: 100%;
+            background: #0a4db2;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background .2s, transform .15s;
+            margin-top: 4px;
+        }
+        .refill-btn:hover { background: #1660ce; transform: scale(1.02); }
+
+        /* ── Info cards below refill form ──────────────── */
+        .info-cards {
+            margin-top: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .info-card {
+            background: #fff;
+            border: 1.5px solid #d0d8ee;
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+        .info-card .ic-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #999;
+            letter-spacing: .05em;
+        }
+        .info-card .ic-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0a2b76;
+            margin-top: 3px;
+        }
+
+        /* ── Success flash ─────────────────────────────── */
+        .refill-success {
+            display: none;
+            background: linear-gradient(90deg,#e6f9f0,#d4f5e5);
+            border: 1.5px solid #27ae60;
+            border-radius: 10px;
+            padding: 11px 14px;
+            color: #1a7a42;
+            font-weight: 700;
+            font-size: 13px;
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        /* ── Footer ────────────────────────────────────── */
+        .summary-row {
+            background: #0a4db2;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            padding: 14px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            flex-wrap: wrap;
+        }
+        .summary-row span strong { color: #ffe066; }
+    </style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────── -->
+<header class="top-area">
+    <img src="{% static 'core/logo.jpg' %}" alt="SLTB Logo" class="logo">
+    <nav class="module-nav">
+        <div class="module-buttons">
+            {% for item in module_buttons %}
+                <a href="{{ item.url }}" class="module-btn {% if item.is_active %}active{% endif %}">{{ item.label }}</a>
+            {% endfor %}
+        </div>
+    </nav>
+
+    <!-- ── Notification Bell ─────────────────────────── -->
+    <div class="notification-area">
+        <button class="bell-btn" id="bellBtn" title="Notifications" onclick="toggleNotifPanel()">
+            <svg class="bell-icon" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M18 3C18 3 10 7 10 18v7l-3 3v1h22v-1l-3-3v-7C26 7 18 3 18 3z"
+                      fill="white" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+                <path d="M15 31a3 3 0 0 0 6 0" fill="white"/>
+                <circle cx="27" cy="9" r="5" fill="#ffdd00" id="bellDot" style="display:none;"/>
+            </svg>
+            <span class="badge-dot" id="badgeDot"></span>
+        </button>
+        <div class="notif-panel" id="notifPanel">
+            <div class="notif-header">
+                <span>🔔 Notifications</span>
+                <span id="notifCount" style="background:#fff;color:#0a4db2;border-radius:20px;padding:1px 9px;font-size:12px;">0</span>
+            </div>
+            <div class="notif-list" id="notifList">
+                <div class="notif-empty" id="notifEmpty">No notifications</div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- ── Main Content ─────────────────────────────────────── -->
+<main>
+    <div class="fuel-page">
+
+        <!-- Left: Tank Visualisation -->
+        <div class="tank-panel">
+            <h2>⛽ Depot Fuel Tank</h2>
+            <div class="tank-wrap">
+
+                <!-- Animated SVG Tank -->
+                <div class="tank-svg-container" id="tankContainer">
+                    <svg id="tankSvg" viewBox="0 0 260 380" width="260" height="380"
+                         xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:1;">
+                        <defs>
+                            <linearGradient id="tankBodyGrad" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stop-color="#b0c4de"/>
+                                <stop offset="40%" stop-color="#dce8f5"/>
+                                <stop offset="100%" stop-color="#8facc8"/>
+                            </linearGradient>
+                            <linearGradient id="fuelGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#f5c518" id="fuelTop"/>
+                                <stop offset="100%" stop-color="#e07b00" id="fuelBottom"/>
+                            </linearGradient>
+                            <linearGradient id="fuelLowGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#ff7675"/>
+                                <stop offset="100%" stop-color="#d63031"/>
+                            </linearGradient>
+                            <clipPath id="tankClip">
+                                <!-- Rounded rectangle tank body clip -->
+                                <rect x="30" y="60" width="200" height="280" rx="22" ry="22"/>
+                            </clipPath>
+                            <filter id="shine">
+                                <feGaussianBlur stdDeviation="3" result="blur"/>
+                                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                            </filter>
+                        </defs>
+
+                        <!-- Tank body outline -->
+                        <rect x="30" y="60" width="200" height="280" rx="22" ry="22"
+                              fill="url(#tankBodyGrad)" stroke="#7a9cbf" stroke-width="3"/>
+
+                        <!-- Fuel fill (animated height via JS) -->
+                        <rect id="fuelRect" x="31" y="200" width="198" height="139"
+                              clip-path="url(#tankClip)"
+                              fill="url(#fuelGrad)" rx="0"/>
+
+                        <!-- Fuel surface wave -->
+                        <g clip-path="url(#tankClip)">
+                            <path id="wavePath"
+                                  d="M31,200 Q80,192 130,200 Q180,208 228,200 L228,200 L31,200 Z"
+                                  fill="rgba(255,255,255,0.3)" id="waveLayer"/>
+                        </g>
+
+                        <!-- Shine glare -->
+                        <rect x="45" y="75" width="18" height="240" rx="9"
+                              fill="rgba(255,255,255,0.22)" filter="url(#shine)"/>
+
+                        <!-- Tick marks -->
+                        <g stroke="#5a7a9a" stroke-width="1.5" font-size="10" fill="#4a6a8a"
+                           font-family="Arial,sans-serif">
+                            <!-- 100% -->
+                            <line x1="230" y1="82" x2="242" y2="82"/>
+                            <text x="245" y="86">100%</text>
+                            <!-- 75% -->
+                            <line x1="230" y1="152" x2="242" y2="152"/>
+                            <text x="245" y="156">75%</text>
+                            <!-- 50% -->
+                            <line x1="230" y1="200" x2="242" y2="200"/>
+                            <text x="245" y="204">50%</text>
+                            <!-- 25% -->
+                            <line x1="230" y1="270" x2="242" y2="270"/>
+                            <text x="245" y="274">25%</text>
+                            <!-- 0% -->
+                            <line x1="230" y1="338" x2="242" y2="338"/>
+                            <text x="245" y="342">0%</text>
+                            <!-- 10% danger line -->
+                            <line x1="31" y1="310" x2="229" y2="310" stroke="#e03a3a"
+                                  stroke-width="1.2" stroke-dasharray="5,4" opacity="0.7"/>
+                        </g>
+
+                        <!-- Danger label -->
+                        <text x="38" y="307" font-size="9" fill="#e03a3a"
+                              font-family="Arial,sans-serif" font-weight="bold">LOW — 3000L</text>
+
+                        <!-- Tank cap/neck -->
+                        <rect x="108" y="38" width="44" height="26" rx="8"
+                              fill="#8facc8" stroke="#7a9cbf" stroke-width="2"/>
+                        <rect x="118" y="28" width="24" height="14" rx="5"
+                              fill="#7a9cbf" stroke="#6a8caf" stroke-width="1.5"/>
+
+                        <!-- Pipe outlet at bottom -->
+                        <rect x="108" y="338" width="44" height="14" rx="5"
+                              fill="#7a9cbf" stroke="#6a8caf" stroke-width="1.5"/>
+                        <rect x="120" y="350" width="20" height="22" rx="4"
+                              fill="#7a9cbf" stroke="#6a8caf" stroke-width="1.5"/>
+
+                        <!-- Percentage label inside tank -->
+                        <text id="pctLabel" x="130" y="210" text-anchor="middle"
+                              font-size="32" font-weight="bold" fill="white"
+                              font-family="Arial,sans-serif"
+                              style="text-shadow:0 1px 4px rgba(0,0,0,0.4);filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">
+                            50%
+                        </text>
+                    </svg>
+
+                    <!-- Bubble container (positioned inside tank area) -->
+                    <div id="bubbleContainer" style="position:absolute;left:31px;top:60px;width:198px;height:280px;overflow:hidden;border-radius:18px;pointer-events:none;z-index:2;"></div>
+                </div>
+
+                <!-- Level stats -->
+                <div class="level-stats">
+                    <div class="stat-box" id="statCurrent">
+                        <div class="val" id="statLiters">-- L</div>
+                        <div class="lbl">Current Level</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="val">30,000 L</div>
+                        <div class="lbl">Maximum Capacity</div>
+                    </div>
+                    <div class="stat-box" id="statPct">
+                        <div class="val" id="statPctVal">--%</div>
+                        <div class="lbl">Fill Percentage</div>
+                    </div>
+                </div>
+
+                <!-- Low fuel alert -->
+                <div class="low-alert" id="lowAlert">
+                    ⚠️ CRITICAL: Fuel below 3,000 L — Please refill immediately!
+                </div>
+
+            </div><!-- /.tank-wrap -->
+        </div><!-- /.tank-panel -->
+
+        <!-- Right: Refill Panel -->
+        <div class="refill-panel">
+            <h2>🔄 Refill Depot Tank</h2>
+
+            <div class="refill-success" id="refillSuccess">
+                ✅ Tank refilled successfully!
+            </div>
+
+            <form method="post" action="{% url 'fuel_refill' %}" id="refillForm">
+                {% csrf_token %}
+                <label for="refill_amount">Refill Amount (Liters)</label>
+                <input type="number" id="refill_amount" name="refill_amount"
+                       min="1" max="30000" step="1"
+                       placeholder="Enter litres to add…" required>
+
+                <label for="last_refill_date">Last Refilled Date</label>
+                <input type="date" id="last_refill_date" name="last_refill_date"
+                       value="{{ tank.last_refill_date|date:'Y-m-d' }}">
+
+                <label for="next_refill_date">Next Refill Date</label>
+                <input type="date" id="next_refill_date" name="next_refill_date"
+                       value="{{ tank.next_refill_date|date:'Y-m-d' }}">
+
+                <button type="submit" class="refill-btn">⛽ Refill Tank</button>
+            </form>
+
+            <!-- Info cards -->
+            <div class="info-cards">
+                <div class="info-card">
+                    <div class="ic-label">Last Refilled</div>
+                    <div class="ic-value" id="icLastRefill">
+                        {% if tank.last_refill_date %}{{ tank.last_refill_date|date:"d M Y" }}{% else %}—{% endif %}
+                    </div>
+                </div>
+                <div class="info-card">
+                    <div class="ic-label">Last Refill Amount</div>
+                    <div class="ic-value" id="icLastAmt">
+                        {% if tank.last_refill_amount %}{{ tank.last_refill_amount|floatformat:0 }} L{% else %}—{% endif %}
+                    </div>
+                </div>
+                <div class="info-card">
+                    <div class="ic-label">Next Scheduled Refill</div>
+                    <div class="ic-value" id="icNextRefill">
+                        {% if tank.next_refill_date %}{{ tank.next_refill_date|date:"d M Y" }}{% else %}—{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div><!-- /.refill-panel -->
+
+    </div><!-- /.fuel-page -->
+</main>
+
+<!-- ── Footer ───────────────────────────────────────────── -->
+<footer class="summary-row">
+    <span>Current Level: <strong>{{ tank.current_level_liters|floatformat:0 }} L</strong></span>
+    <span>Capacity: <strong>30,000 L</strong></span>
+    <span>Fill %: <strong>{{ fill_pct|floatformat:1 }}%</strong></span>
+    <span>Status: <strong id="footStatus">{{ fuel_status }}</strong></span>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── Initial data from Django ──────────────────────────────
+const TANK_CURRENT  = {{ tank.current_level_liters }};
+const TANK_MAX      = {{ tank.max_capacity_liters }};
+const LOW_THRESHOLD = 3000;
+const REFILLED      = {{ just_refilled|lower }};
+
+// ── Notification store ────────────────────────────────────
+let notifications = [];
+
+// ── Animate tank to a given fill percentage ────────────────
+function animateTank(targetPct, duration = 1800) {
+    const fuelRect  = document.getElementById('fuelRect');
+    const wavePath  = document.getElementById('wavePath');
+    const pctLabel  = document.getElementById('pctLabel');
+    const waveLayer = document.getElementById('waveLayer');
+
+    const tankTop    = 60 + 2;   // top of clip rect + border
+    const tankBottom = 60 + 280; // bottom of clip rect
+    const tankHeight = tankBottom - tankTop; // 278
+
+    const clampedPct = Math.max(0, Math.min(100, targetPct));
+
+    // Current y values
+    const startY   = parseFloat(fuelRect.getAttribute('y')) || tankBottom;
+    const targetY  = tankBottom - (clampedPct / 100) * tankHeight;
+
+    let start = null;
+    function step(ts) {
+        if (!start) start = ts;
+        const progress = Math.min((ts - start) / duration, 1);
+        // Ease out cubic
+        const ease = 1 - Math.pow(1 - progress, 3);
+        const currentY = startY + (targetY - startY) * ease;
+
+        fuelRect.setAttribute('y', currentY);
+        fuelRect.setAttribute('height', tankBottom - currentY);
+
+        // Colour swap when low
+        const low = clampedPct < 10;
+        fuelRect.setAttribute('fill', low ? 'url(#fuelLowGrad)' : 'url(#fuelGrad)');
+
+        // Wave tracks the surface
+        const wX = 31, wW = 198;
+        const amp = 4;
+        wavePath.setAttribute('d',
+            `M${wX},${currentY} ` +
+            `Q${wX + wW*0.25},${currentY - amp} ${wX + wW*0.5},${currentY} ` +
+            `Q${wX + wW*0.75},${currentY + amp} ${wX + wW},${currentY} ` +
+            `L${wX + wW},${currentY} L${wX},${currentY} Z`
+        );
+
+        // Label
+        const labelY = Math.max(currentY + 36, tankTop + 36);
+        pctLabel.setAttribute('y', labelY);
+        pctLabel.textContent = Math.round(clampedPct) + '%';
+
+        if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+}
+
+// ── Bubbles ───────────────────────────────────────────────
+function spawnBubble() {
+    const container = document.getElementById('bubbleContainer');
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    const size = 6 + Math.random() * 12;
+    const leftPct = 10 + Math.random() * 80;
+    const dur = 2.5 + Math.random() * 3;
+    const delay = Math.random() * 2;
+    b.style.cssText = `
+        width:${size}px; height:${size}px;
+        left:${leftPct}%; bottom:0;
+        animation-duration:${dur}s;
+        animation-delay:${delay}s;
+    `;
+    container.appendChild(b);
+    setTimeout(() => b.remove(), (dur + delay) * 1000 + 200);
+}
+
+// ── Update stats panels ───────────────────────────────────
+function updateStats(liters) {
+    const pct = (liters / TANK_MAX) * 100;
+    document.getElementById('statLiters').textContent = Math.round(liters).toLocaleString() + ' L';
+    document.getElementById('statPctVal').textContent = pct.toFixed(1) + '%';
+    const statBox = document.getElementById('statCurrent');
+    statBox.classList.toggle('warn', liters < LOW_THRESHOLD);
+    document.getElementById('lowAlert').style.display = liters < LOW_THRESHOLD ? 'block' : 'none';
+}
+
+// ── Notifications ─────────────────────────────────────────
+function addNotification(icon, title, detail) {
+    notifications.unshift({ icon, title, detail, time: new Date() });
+    renderNotifications();
+    document.getElementById('badgeDot').style.display = 'block';
+    document.getElementById('bellDot').style.display = 'block';
+}
+
+function renderNotifications() {
+    const list = document.getElementById('notifList');
+    const empty = document.getElementById('notifEmpty');
+    const count = document.getElementById('notifCount');
+    count.textContent = notifications.length;
+    if (notifications.length === 0) {
+        empty.style.display = 'block';
+        list.querySelectorAll('.notif-item').forEach(e => e.remove());
+        return;
+    }
+    empty.style.display = 'none';
+    list.innerHTML = '';
+    notifications.forEach(n => {
+        const mins = Math.round((new Date() - n.time) / 60000);
+        const timeStr = mins < 1 ? 'Just now' : `${mins}m ago`;
+        const div = document.createElement('div');
+        div.className = 'notif-item';
+        div.innerHTML = `
+            <div class="notif-icon">${n.icon}</div>
+            <div class="notif-text">
+                <strong>${n.title}</strong>
+                <span>${n.detail}</span><br>
+                <span style="color:#bbb;font-size:11px;">${timeStr}</span>
+            </div>`;
+        list.appendChild(div);
+    });
+}
+
+function toggleNotifPanel() {
+    const panel = document.getElementById('notifPanel');
+    panel.classList.toggle('open');
+    if (panel.classList.contains('open')) {
+        // Clear badge when opened
+        document.getElementById('badgeDot').style.display = 'none';
+        document.getElementById('bellDot').style.display = 'none';
+        renderNotifications();
+    }
+}
+
+// Close panel when clicking outside
+document.addEventListener('click', function(e) {
+    const panel = document.getElementById('notifPanel');
+    const bell  = document.getElementById('bellBtn');
+    if (panel.classList.contains('open') && !panel.contains(e.target) && !bell.contains(e.target)) {
+        panel.classList.remove('open');
+    }
+});
+
+// ── Refill animation (full tank for 2 s then settle) ──────
+function refillAnimation() {
+    // Briefly animate to 100% then settle at actual level
+    animateTank(100, 1000);
+    spawnBubbles(20);
+    setTimeout(() => {
+        const finalPct = (TANK_CURRENT / TANK_MAX) * 100;
+        animateTank(finalPct, 1200);
+    }, 1600);
+}
+
+function spawnBubbles(count) {
+    for (let i = 0; i < count; i++) {
+        setTimeout(spawnBubble, i * 80);
+    }
+}
+
+// ── Init ──────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+    const pct = (TANK_CURRENT / TANK_MAX) * 100;
+    updateStats(TANK_CURRENT);
+
+    if (REFILLED) {
+        // Show success message
+        document.getElementById('refillSuccess').style.display = 'block';
+        setTimeout(() => {
+            document.getElementById('refillSuccess').style.display = 'none';
+        }, 5000);
+        refillAnimation();
+        addNotification('✅', 'Tank Refilled', `Depot tank refilled. Current level: ${Math.round(TANK_CURRENT).toLocaleString()} L`);
+    } else {
+        animateTank(pct, 1800);
+    }
+
+    // Spawn bubbles periodically if tank > 0
+    if (TANK_CURRENT > 0) {
+        setInterval(() => {
+            if (Math.random() < 0.6) spawnBubble();
+        }, 600);
+    }
+
+    // Low fuel notification
+    if (TANK_CURRENT < LOW_THRESHOLD) {
+        addNotification(
+            '⛽',
+            'Critical Fuel Level',
+            `Depot tank at ${Math.round(TANK_CURRENT).toLocaleString()} L — below the 3,000 L threshold!`
+        );
+        // Auto-show bell badge
+        document.getElementById('badgeDot').style.display = 'block';
+    }
+});
+</script>
+</body>
+</html>

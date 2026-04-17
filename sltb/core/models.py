@@ -427,6 +427,40 @@ class StaffAttendance(models.Model):
     def __str__(self):
         return f"{self.staff_type}: {self.staff_name} ({self.status})"
     
+#Depot fuel tank module
+class DepotFuelTank(models.Model):
+    current_level_liters = models.FloatField(default=15000)
+    max_capacity_liters = models.FloatField(default=30000)
+    last_refill_date = models.DateField(null=True, blank=True)
+    next_refill_date = models.DateField(null=True, blank=True)
+    last_refill_amount = models.FloatField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def get_tank(cls):
+        """Always return the single depot tank, creating it if needed."""
+        tank, _ = cls.objects.get_or_create(pk=1, defaults={'current_level_liters': 15000})
+        return tank
+
+    def refill(self, amount_liters, last_refill_date=None, next_refill_date=None):
+        from django.utils import timezone
+        self.current_level_liters = min(self.max_capacity_liters, self.current_level_liters + amount_liters)
+        self.last_refill_amount = amount_liters
+        self.last_refill_date = last_refill_date or timezone.now().date()
+        if next_refill_date:
+            self.next_refill_date = next_refill_date
+        self.save()
+
+    def is_low(self):
+        return self.current_level_liters < 3000
+
+    def percentage(self):
+        return (self.current_level_liters / self.max_capacity_liters) * 100
+
+    def __str__(self):
+        return f"Depot Tank: {self.current_level_liters:.0f}L / {self.max_capacity_liters:.0f}L"
+
+
 #Bus maintenance module
 class BusMaintenance(models.Model):
     STATUS_CHOICES = [

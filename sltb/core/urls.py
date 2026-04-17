@@ -30,4 +30,6 @@ urlpatterns = [
     path('trips/bus/<int:bus_id>/confirmation/', views.driver_conductor_confirmation, name='driver_conductor_confirmation'),
     path('trips/bus/<int:bus_id>/current-schedules/', views.current_schedules, name='current_schedules'),
     path('trips/start/<int:schedule_id>/', views.start_trip, name='start_trip'),
+    path('fuel/', views.fuel_dashboard, name='fuel_dashboard'),
+    path('fuel/refill/', views.fuel_refill, name='fuel_refill'),
 ]

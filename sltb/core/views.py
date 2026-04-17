@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.utils import timezone
 from datetime import datetime, timedelta
 from .forms import BusForm, BusMaintenanceForm, ConductorForm, DriverForm, RouteForm, ScheduleForm, StopForm, TimeTableForm
-from .models import Bus, BusMaintenance, Conductor, Driver, Route, Schedule, RouteStop, Stop, TimeTable, Trip
+from .models import Bus, BusMaintenance, Conductor, DepotFuelTank, Driver, Route, Schedule, RouteStop, Stop, TimeTable, Trip
 
 def _module_buttons(active_module):
     items = [
@@ -14,7 +14,7 @@ def _module_buttons(active_module):
         {'label': 'Manage Routes', 'url': reverse('route_dashboard'), 'key': 'manage_routes'},
         {'label': 'View Timetable', 'url': reverse('timetable_dashboard'), 'key': 'view_timetable'},
         {'label': 'Scheduling', 'url': reverse('scheduling_dashboard'), 'key': 'scheduling'},
-        {'label': 'Fuel Usage', 'url': '#', 'key': 'fuel_usage'},
+        {'label': 'Fuel Usage', 'url': reverse('fuel_dashboard'), 'key': 'fuel_usage'},
         {'label': 'Maintenance', 'url': reverse('maintenance_dashboard'), 'key': 'maintenance'},
         {'label': 'Current Trips', 'url': reverse('bus_trip_welcome'), 'key': 'current_trips'},
         
@@ -783,3 +783,48 @@ def start_trip(request, schedule_id):
         'module_buttons': _module_buttons('current_trips'),
     }
     return render(request, 'core/start_trip.html', context)
+
+
+# ── Fuel Dashboard ────────────────────────────────────────
+def fuel_dashboard(request):
+    tank = DepotFuelTank.get_tank()
+    just_refilled = request.session.pop('just_refilled', False)
+    fill_pct = tank.percentage()
+    fuel_status = 'CRITICAL – LOW FUEL' if tank.is_low() else 'Normal'
+
+    context = {
+        'tank': tank,
+        'fill_pct': fill_pct,
+        'fuel_status': fuel_status,
+        'just_refilled': just_refilled,
+        'module_buttons': _module_buttons('fuel_usage'),
+    }
+    return render(request, 'core/fuel_dashboard.html', context)
+
+
+def fuel_refill(request):
+    if request.method == 'POST':
+        tank = DepotFuelTank.get_tank()
+        try:
+            amount = float(request.POST.get('refill_amount', 0))
+        except (ValueError, TypeError):
+            amount = 0
+
+        last_date_str = request.POST.get('last_refill_date', '').strip()
+        next_date_str = request.POST.get('next_refill_date', '').strip()
+
+        from datetime import date as date_cls
+        def parse_date(s):
+            try:
+                return date_cls.fromisoformat(s) if s else None
+            except ValueError:
+                return None
+
+        last_date = parse_date(last_date_str)
+        next_date = parse_date(next_date_str)
+
+        if amount > 0:
+            tank.refill(amount, last_refill_date=last_date, next_refill_date=next_date)
+            request.session['just_refilled'] = True
+
+    return redirect('fuel_dashboard')
