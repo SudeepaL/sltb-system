@@ -1,6 +1,8 @@
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
+from datetime import datetime, timedelta
 from .forms import BusForm, BusMaintenanceForm, ConductorForm, DriverForm, RouteForm, ScheduleForm, StopForm, TimeTableForm
 from .models import Bus, BusMaintenance, Conductor, Driver, Route, Schedule, RouteStop, Stop, TimeTable, Trip
 
@@ -472,6 +474,8 @@ def scheduling_dashboard(request):
         'schedules': schedules,
         'total_schedules': schedules.count(),
         'scheduled_count': schedules.filter(status='SCHEDULED').count(),
+        'ongoing_count': schedules.filter(status='ONGOING').count(),
+        'delayed_count': schedules.filter(status='DELAYED').count(),
         'completed_count': schedules.filter(status='COMPLETED').count(),
         'cancelled_count': schedules.filter(status='CANCELLED').count(),
         'module_buttons': _module_buttons('scheduling'),
@@ -715,3 +719,67 @@ def current_schedules(request, bus_id):
         'module_buttons': _module_buttons('current_trips'),
     }
     return render(request, 'core/current_schedules.html', context)
+
+def _combine_schedule_datetime(schedule_date, time_text):
+    if not time_text:
+        return None
+    parsed_time = datetime.strptime(time_text, '%H:%M').time()
+    naive_datetime = datetime.combine(schedule_date, parsed_time)
+    return timezone.make_aware(naive_datetime, timezone.get_current_timezone())
+
+
+def start_trip(request, schedule_id):
+    schedule = get_object_or_404(
+        Schedule.objects.select_related('bus', 'driver', 'conductor', 'timetable__route'),
+        id=schedule_id,
+    )
+
+    if not request.session.get(f'bus_trip_access_{schedule.bus.id}'):
+        return redirect('driver_conductor_confirmation', bus_id=schedule.bus.id)
+
+    trip, _ = Trip.objects.get_or_create(schedule=schedule)
+    error_message = ''
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'start':
+            departure_time = request.POST.get('actual_departure_time', '')
+            actual_departure_at = _combine_schedule_datetime(schedule.date, departure_time)
+            if not actual_departure_at:
+                error_message = 'Please select the actual departure time before starting the trip.'
+            else:
+                trip.start_trip(actual_departure_time=actual_departure_at)
+                return redirect('start_trip', schedule_id=schedule.id)
+
+        elif action == 'delay' and trip.t_status in ['ONGOING', 'DELAYED']:
+            reason = request.POST.get('delay_reason', '').strip()
+            if not reason:
+                error_message = 'Please enter a delay reason.'
+            else:
+                trip.delay_trip(reason=reason)
+                return redirect('start_trip', schedule_id=schedule.id)
+
+        elif action == 'end' and trip.t_status in ['ONGOING', 'DELAYED']:
+            arrival_time = request.POST.get('actual_arrival_time', '')
+            actual_arrival_at = _combine_schedule_datetime(schedule.date, arrival_time)
+            if not actual_arrival_at:
+                error_message = 'Please select the actual arrival time before ending the trip.'
+            else:
+                if trip.actual_departure_time and actual_arrival_at < trip.actual_departure_time:
+                    actual_arrival_at += timedelta(days=1)
+                trip.complete_trip(actual_arrival_time=actual_arrival_at)
+                return redirect('current_schedules', bus_id=schedule.bus.id)
+
+    delay_elapsed_seconds = None
+    if trip.t_status == 'DELAYED' and trip.delay_started_at:
+        delay_elapsed_seconds = int((timezone.now() - trip.delay_started_at).total_seconds())
+
+    context = {
+        'schedule': schedule,
+        'trip': trip,
+        'error_message': error_message,
+        'delay_elapsed_seconds': delay_elapsed_seconds,
+        'module_buttons': _module_buttons('current_trips'),
+    }
+    return render(request, 'core/start_trip.html', context)

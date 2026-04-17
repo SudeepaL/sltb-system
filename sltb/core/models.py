@@ -210,6 +210,8 @@ class Schedule(models.Model):
 
     S_STATUS_CHOICES = [
         ('SCHEDULED', 'Scheduled'),
+        ('ONGOING', 'On going'),
+        ('DELAYED', 'Delayed'),
         ('COMPLETED', 'Completed'),
         ('CANCELLED', 'Cancelled'), 
     ]
@@ -287,37 +289,59 @@ class Trip(models.Model):
         blank=True,
         help_text='Actual arrival date and time recorded when the trip completes.',
     )
+    delay_started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Date and time when the delay started.',
+    )
     delay_reason = models.TextField(null=True, blank=True)
 
-    def start_trip(self):
+    def start_trip(self, actual_departure_time=None):
         self.t_status = 'ONGOING'
-        self.actual_departure_time = timezone.now()
+        self.actual_departure_time = actual_departure_time or timezone.now()
+        self.delay_started_at = None
+        self.delay_reason = None
 
         #If driver or conductor busy:
-        self.schedule.driver.driver_status = 'ON_ROUTE'
-        self.schedule.driver.save()
-        self.schedule.conductor.conductor_status = 'ON_DUTY'
-        self.schedule.conductor.save()
+        if self.schedule.driver:
+            self.schedule.driver.driver_status = 'ON_ROUTE'
+            self.schedule.driver.save(update_fields=['driver_status'])
+        if self.schedule.conductor:
+            self.schedule.conductor.conductor_status = 'ON_DUTY'
+            self.schedule.conductor.save(update_fields=['conductor_status'])
+        self.schedule.bus.status = 'ON_ROUTE'
+        self.schedule.bus.save(update_fields=['status'])
+        self.schedule.status = 'ONGOING'
+        self.schedule.save(update_fields=['status'])
 
         self.save()
 
     def delay_trip(self, reason):
         self.t_status = 'DELAYED'
         self.delay_reason = reason
+        self.delay_started_at = timezone.now()
+        self.schedule.status = 'DELAYED'
+        self.schedule.save(update_fields=['status'])
         self.save()
 
-    def complete_trip(self):
+    def complete_trip(self, actual_arrival_time=None):
         self.t_status = 'COMPLETED'
-        self.actual_arrival_time = timezone.now()
+        self.actual_arrival_time = actual_arrival_time or timezone.now()
         self.schedule.bus.burn_fuel_for_distance(self.schedule.timetable.route.distance)
+        self.schedule.bus.status = 'AVAILABLE'
+        self.schedule.bus.save(update_fields=['status'])
+        self.schedule.status = 'COMPLETED'
+        self.schedule.save(update_fields=['status'])
 
         #Only available if there is no return trip: 
         if not self.return_trip:
-            self.schedule.driver.driver_status = 'AVAILABLE'
-            self.schedule.driver.save()
+            if self.schedule.driver:
+                self.schedule.driver.driver_status = 'AVAILABLE'
+                self.schedule.driver.save(update_fields=['driver_status'])
 
-            self.schedule.conductor.conductor_status = 'AVAILABLE'
-            self.schedule.conductor.save()
+            if self.schedule.conductor:
+                self.schedule.conductor.conductor_status = 'AVAILABLE'
+                self.schedule.conductor.save(update_fields=['conductor_status'])
 
         self.save()
 

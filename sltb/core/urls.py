@@ -29,4 +29,5 @@ urlpatterns = [
     path('trips/', views.bus_trip_welcome, name='bus_trip_welcome'),
     path('trips/bus/<int:bus_id>/confirmation/', views.driver_conductor_confirmation, name='driver_conductor_confirmation'),
     path('trips/bus/<int:bus_id>/current-schedules/', views.current_schedules, name='current_schedules'),
+    path('trips/start/<int:schedule_id>/', views.start_trip, name='start_trip'),
 ]

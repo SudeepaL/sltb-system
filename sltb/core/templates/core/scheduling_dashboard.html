@@ -34,6 +34,16 @@
             color: #1b7f2a;
         }
 
+        .badge-ongoing {
+            background: #ffe69c;
+            color: #7f5b00;
+        }
+
+        .badge-delayed {
+            background: #ffd1d1;
+            color: #a30000;
+        }
+
         .badge-cancelled {
             background: #ffe2e2;
             color: #a30000;
@@ -81,7 +91,7 @@
                     <td>{{ schedule.driver.driver_name|default:"-" }}</td>
                     <td>{{ schedule.conductor.conductor_name|default:"-" }}</td>
                     <td>
-                        <span class="badge-status {% if schedule.status == 'SCHEDULED' %}badge-scheduled{% elif schedule.status == 'COMPLETED' %}badge-completed{% else %}badge-cancelled{% endif %}">
+                        <span class="badge-status {% if schedule.status == 'SCHEDULED' %}badge-scheduled{% elif schedule.status == 'ONGOING' %}badge-ongoing{% elif schedule.status == 'DELAYED' %}badge-delayed{% elif schedule.status == 'COMPLETED' %}badge-completed{% else %}badge-cancelled{% endif %}">
                             {{ schedule.get_status_display }}
                         </span>
                     </td>
@@ -112,6 +122,8 @@
 <footer class="summary-row">
     <span>Total Schedules: <strong>{{ total_schedules }}</strong></span>
     <span>Scheduled: <strong>{{ scheduled_count }}</strong></span>
+    <span>On going: <strong>{{ ongoing_count }}</strong></span>
+    <span>Delayed: <strong>{{ delayed_count }}</strong></span>
     <span>Completed: <strong>{{ completed_count }}</strong></span>
     <span>Cancelled: <strong>{{ cancelled_count }}</strong></span>
 </footer>
