@@ -397,12 +397,23 @@ class StaffAttendance(models.Model):
     
 #Bus maintenance module
 class BusMaintenance(models.Model):
+    STATUS_CHOICES = [
+        ('IN_SERVICE', 'In Service'),
+        ('COMPLETED', 'Completed'),
+    ]
+
     bus = models.ForeignKey('Bus', on_delete=models.CASCADE, related_name='maintenance_records')
     service_date = models.DateField(default=timezone.now)
     mileage = models.PositiveIntegerField(help_text='Current mileage at the time of service')
     service_history = models.TextField(help_text='Summary of service history / issue reported')
     maintenance_details = models.TextField(help_text='Maintenance work completed for this service')
     next_service_due_mileage = models.PositiveIntegerField(null=True, blank=True)
+    estimated_maintenance_duration = models.DateTimeField(null=True, blank=True, help_text='Estimated date and time maintenance will be completed')
+    estimated_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, help_text='Estimated cost in LKR')
+    maintenance_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='IN_SERVICE')
+    actual_completion_date = models.DateTimeField(null=True, blank=True, help_text='Actual date and time maintenance was completed')
+    actual_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, help_text='Actual cost in LKR')
+    service_bill = models.FileField(upload_to='service_bills/', null=True, blank=True, help_text='Upload bill or photo of the bill')
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

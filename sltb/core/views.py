@@ -507,14 +507,7 @@ def maintenance_dashboard(request):
             service_history = BusMaintenance.objects.filter(bus=selected_bus).order_by('-service_date', '-created_at')
 
     if request.method == 'POST':
-        if 'delete_maintenance' in request.POST:
-            record_id = request.POST.get('record_id')
-            record = get_object_or_404(BusMaintenance, id=record_id)
-            bus_code = record.bus.bus_code
-            record.delete()
-            return redirect(f"{reverse('maintenance_dashboard')}?bus_code={bus_code}")
-
-        if 'save_maintenance' in request.POST:
+        if 'add_bus_to_service' in request.POST:
             bus_code = request.POST.get('bus_code_hidden', '')
             bus = Bus.objects.filter(bus_code=bus_code).first()
             if bus:
@@ -525,21 +518,59 @@ def maintenance_dashboard(request):
                     service_history=request.POST.get('service_history', ''),
                     maintenance_details=request.POST.get('maintenance_details', ''),
                     next_service_due_mileage=request.POST.get('next_service_due_mileage') or None,
+                    estimated_maintenance_duration=request.POST.get('estimated_maintenance_duration') or None,
+                    estimated_cost=request.POST.get('estimated_cost') or None,
+                    maintenance_status='IN_SERVICE',
                 )
+                bus.status = 'MAINTENANCE'
+                bus.save(update_fields=['status'])
             return redirect(f"{reverse('maintenance_dashboard')}?bus_code={bus_code}")
 
-    maintenance_records = BusMaintenance.objects.select_related('bus').order_by('-service_date', '-created_at')
+    active_records = BusMaintenance.objects.select_related('bus').filter(
+        maintenance_status='IN_SERVICE'
+    ).order_by('-service_date', '-created_at')
+
+    completed_records = BusMaintenance.objects.select_related('bus').filter(
+        maintenance_status='COMPLETED'
+    ).order_by('-actual_completion_date', '-created_at')
+
+    filter_date_from = request.GET.get('filter_date_from', '')
+    filter_date_to = request.GET.get('filter_date_to', '')
+    if filter_date_from:
+        completed_records = completed_records.filter(service_date__gte=filter_date_from)
+    if filter_date_to:
+        completed_records = completed_records.filter(service_date__lte=filter_date_to)
+
     context = {
         'buses': buses,
         'selected_bus': selected_bus,
         'selected_bus_code': selected_bus_code,
         'service_history': service_history,
-        'maintenance_records': maintenance_records,
-        'total_records': maintenance_records.count(),
-        'due_records': maintenance_records.filter(next_service_due_mileage__isnull=False).count(),
+        'active_records': active_records,
+        'completed_records': completed_records,
+        'filter_date_from': filter_date_from,
+        'filter_date_to': filter_date_to,
         'module_buttons': _module_buttons('maintenance'),
     }
     return render(request, 'core/maintenance_dashboard.html', context)
+
+
+def complete_maintenance(request, record_id):
+    from django.utils import timezone as tz
+    if request.method == 'POST':
+        record = get_object_or_404(BusMaintenance, id=record_id)
+        record.maintenance_status = 'COMPLETED'
+        record.actual_completion_date = tz.now()
+        actual_cost = request.POST.get('actual_cost')
+        if actual_cost:
+            record.actual_cost = actual_cost
+        if 'service_bill' in request.FILES:
+            record.service_bill = request.FILES['service_bill']
+        record.save()
+        bus = record.bus
+        bus.status = 'AVAILABLE'
+        bus.save(update_fields=['status'])
+    return redirect(reverse('maintenance_dashboard'))
 
 
 def get_bus_mileage(request):

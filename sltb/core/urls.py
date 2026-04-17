@@ -25,4 +25,5 @@ urlpatterns = [
     path('maintenance/', views.maintenance_dashboard, name='maintenance_dashboard'),
     path('maintenance/add/', views.add_maintenance, name='add_maintenance'),
     path('maintenance/bus-mileage/', views.get_bus_mileage, name='get_bus_mileage'),
+    path('maintenance/complete/<int:record_id>/', views.complete_maintenance, name='complete_maintenance'),
 ]
