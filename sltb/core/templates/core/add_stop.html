@@ -7,6 +7,72 @@
     <title>Add Stop</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+    <style>
+        #map-container {
+            border: 1px solid #ced4da;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+        #map {
+            width: 100%;
+            height: 380px;
+        }
+        .map-instruction {
+            background: #e7f0ff;
+            border: 1px solid #b3c9f7;
+            border-radius: 6px;
+            padding: 8px 14px;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            color: #1a3a6e;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .coord-fields {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .manage-form p { margin-bottom: 14px; }
+        .manage-form label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .manage-form input[type="text"],
+        .manage-form input[type="number"] {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+        .manage-form input:focus {
+            outline: none;
+            border-color: #0a4db2;
+            box-shadow: 0 0 0 2px rgba(10,77,178,0.15);
+        }
+        .pin-indicator {
+            display: none;
+            background: #d4edda;
+            border: 1px solid #a3d9a5;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            color: #155724;
+            margin-bottom: 12px;
+            align-items: center;
+            gap: 6px;
+        }
+        .pin-indicator.visible { display: flex; }
+    </style>
 </head>
 <body>
 <header class="top-area">
@@ -22,14 +88,142 @@
 
 <main class="manage-page">
     <h1 class="panel-title"><strong>Add New Stop</strong></h1>
+
     <form method="post" class="manage-form form-shell">
         {% csrf_token %}
-        {{ form.as_p }}
+
+        <!-- Stop Name -->
+        <p>
+            <label for="id_stop_name">Stop name:</label>
+            <input type="text" name="stop_name" id="id_stop_name"
+                   value="{{ form.stop_name.value|default:'' }}"
+                   maxlength="100" required>
+            {% if form.stop_name.errors %}
+                <span style="color:red;font-size:0.85rem;">{{ form.stop_name.errors|join:", " }}</span>
+            {% endif %}
+        </p>
+
+        <!-- Map Picker -->
+        <p style="margin-bottom:6px;">
+            <label>Pick location on map:</label>
+        </p>
+        <div class="map-instruction">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a3a6e" stroke-width="2">
+                <circle cx="12" cy="10" r="3"/>
+                <path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 13 8 13s8-7.75 8-13a8 8 0 0 0-8-8z"/>
+            </svg>
+            Click anywhere on the map to drop a pin — latitude &amp; longitude will be filled in automatically. You can also drag the pin to fine-tune the position.
+        </div>
+        <div id="map-container">
+            <div id="map"></div>
+        </div>
+        <div class="pin-indicator" id="pinIndicator">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#155724" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span id="pinText">Location pinned</span>
+        </div>
+
+        <!-- Lat / Lng -->
+        <div class="coord-fields">
+            <div>
+                <label for="id_latitude">Latitude:</label>
+                <input type="number" name="latitude" id="id_latitude"
+                       value="{{ form.latitude.value|default:'' }}"
+                       step="any" required>
+                {% if form.latitude.errors %}
+                    <span style="color:red;font-size:0.85rem;">{{ form.latitude.errors|join:", " }}</span>
+                {% endif %}
+            </div>
+            <div>
+                <label for="id_longitude">Longitude:</label>
+                <input type="number" name="longitude" id="id_longitude"
+                       value="{{ form.longitude.value|default:'' }}"
+                       step="any" required>
+                {% if form.longitude.errors %}
+                    <span style="color:red;font-size:0.85rem;">{{ form.longitude.errors|join:", " }}</span>
+                {% endif %}
+            </div>
+        </div>
+
         <div class="manage-actions">
             <button type="submit" class="manage-btn">Save Stop</button>
             <a href="{% url 'manage_route_stops' route.id %}" class="module-btn">Cancel</a>
         </div>
     </form>
 </main>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const latInput     = document.getElementById('id_latitude');
+    const lngInput     = document.getElementById('id_longitude');
+    const pinIndicator = document.getElementById('pinIndicator');
+    const pinText      = document.getElementById('pinText');
+
+    const existingLat = parseFloat(latInput.value);
+    const existingLng = parseFloat(lngInput.value);
+    const hasExisting = !isNaN(existingLat) && !isNaN(existingLng);
+
+    // Default center: Sri Lanka
+    const defaultCenter = [7.8731, 80.7718];
+    const initialCenter = hasExisting ? [existingLat, existingLng] : defaultCenter;
+    const initialZoom   = hasExisting ? 15 : 8;
+
+    const map = L.map('map').setView(initialCenter, initialZoom);
+
+    // OpenStreetMap tile layer — completely free, no API key
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+    }).addTo(map);
+
+    let marker = null;
+
+    function placeMarker(latlng) {
+        if (marker) {
+            marker.setLatLng(latlng);
+        } else {
+            marker = L.marker(latlng, { draggable: true }).addTo(map);
+            marker.on('dragend', () => {
+                const pos = marker.getLatLng();
+                updateInputs(pos.lat, pos.lng);
+            });
+        }
+    }
+
+    function updateInputs(lat, lng) {
+        latInput.value = lat.toFixed(7);
+        lngInput.value = lng.toFixed(7);
+        pinText.textContent = `Location pinned at ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        pinIndicator.classList.add('visible');
+    }
+
+    // Click on map to place/move pin
+    map.on('click', (e) => {
+        placeMarker(e.latlng);
+        updateInputs(e.latlng.lat, e.latlng.lng);
+    });
+
+    // If coords already exist (form re-render after validation error), show pin
+    if (hasExisting) {
+        placeMarker([existingLat, existingLng]);
+        updateInputs(existingLat, existingLng);
+    }
+
+    // Sync marker when user types coords manually
+    function syncMapFromInputs() {
+        const lat = parseFloat(latInput.value);
+        const lng = parseFloat(lngInput.value);
+        if (!isNaN(lat) && !isNaN(lng)) {
+            map.setView([lat, lng], 15);
+            placeMarker([lat, lng]);
+            updateInputs(lat, lng);
+        }
+    }
+
+    latInput.addEventListener('change', syncMapFromInputs);
+    lngInput.addEventListener('change', syncMapFromInputs);
+</script>
 </body>
 </html>

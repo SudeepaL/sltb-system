@@ -52,6 +52,9 @@
         #stopSelector option.create-stop-option {
             font-weight: 700;
         }
+
+        tr.start-stop td:first-child,
+        tr.end-stop   td:first-child { font-weight: 700; }
     </style>
 </head>
 <body>
@@ -83,7 +86,12 @@
             </thead>
             <tbody id="routeStopsTbody">
                 {% for route_stop in route_stops %}
-                <tr data-stop-id="{{ route_stop.stop.id }}" draggable="true">
+                <tr data-stop-id="{{ route_stop.stop.id }}"
+                    data-lat="{{ route_stop.stop.latitude }}"
+                    data-lng="{{ route_stop.stop.longitude }}"
+                    data-name="{{ route_stop.stop.stop_name }}"
+                    draggable="true"
+                    {% if forloop.first %}class="start-stop"{% elif forloop.last %}class="end-stop"{% endif %}>
                     <td>{{ route_stop.stop.stop_name }}</td>
                     <td class="order-cell">{{ route_stop.order }}</td>
                     <td>{{ route_stop.stop.latitude }}</td>
@@ -113,6 +121,7 @@
                     {% endfor %}
                 </select>
                 <button type="button" id="deleteStopBtn" class="delete-btn">Delete selected stop</button>
+                <button type="button" id="saveChangesFooterBtn" class="manage-btn">Save Changes</button>
                 <a href="{% url 'route_dashboard' %}" class="module-btn" style="background:#0a4db2;">Back to Routes</a>
             </div>
         </div>
@@ -147,6 +156,9 @@
         rows.forEach((row, index) => {
             row.querySelector('.order-cell').textContent = index + 1;
             row.draggable = true;
+            row.classList.remove('start-stop', 'end-stop');
+            if (index === 0) row.classList.add('start-stop');
+            if (index === rows.length - 1) row.classList.add('end-stop');
         });
 
         if (!rows.length) {
@@ -231,7 +243,7 @@
         showConfirmation();
     });
 
-    saveBtn.addEventListener('click', () => {
+    const doSave = () => {
         const stopIds = [...tbody.querySelectorAll('tr:not(.empty-row)')].map((row) => Number(row.dataset.stopId));
         saveForm.querySelectorAll('input[name="ordered_stop_ids"]').forEach((input) => input.remove());
         stopIds.forEach((stopId) => {
@@ -242,7 +254,9 @@
             saveForm.appendChild(input);
         });
         saveForm.submit();
-    });
+    };
+    saveBtn.addEventListener('click', doSave);
+    document.getElementById('saveChangesFooterBtn').addEventListener('click', doSave);
 
     revertBtn.addEventListener('click', () => {
         tbody.innerHTML = initialRowsMarkup;
