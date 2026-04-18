@@ -107,6 +107,24 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             padding: 20px;
         }
+        .chatbot-panel {
+            grid-column: 1 / -1;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 20px;
+        }
+        .chatbot-output {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 14px;
+            min-height: 90px;
+        }
+        .sample-question-btn {
+            margin: 4px 6px 4px 0;
+            font-size: 0.82rem;
+        }
         .filter-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
         .filter-bar label { font-weight: 600; font-size: 0.88rem; color: #444; margin-bottom: 0; }
         .bill-link { color: #0d6efd; text-decoration: underline; font-size: 0.85rem; }
@@ -252,6 +270,33 @@
             {% else %}
                 <p class="no-history">Select a bus to view its service history.</p>
             {% endif %}
+        </div>
+    </div>
+
+    <!-- FULL WIDTH: Maintenance Chatbot -->
+    <div class="chatbot-panel">
+        <div class="panel-title">Maintenance Assistant Chatbot</div>
+        <p class="text-muted mb-3">Enter a bus mechanical issue and get suggested repair options.</p>
+        <form id="maintenance-chatbot-form" class="mb-3">
+            {% csrf_token %}
+            <div class="input-group">
+                <input type="text" id="chatbot-issue" class="form-control"
+                       placeholder="Example: Bus has engine overheating after 20 minutes on route" required>
+                <button type="submit" class="manage-btn">Get Recommendations</button>
+            </div>
+        </form>
+
+        <div class="mb-3">
+            <div class="form-label mb-2">Sample test questions:</div>
+            <button type="button" class="btn btn-outline-secondary sample-question-btn" data-sample="Bus engine overheating and coolant dropping quickly.">Bus engine overheating and coolant dropping quickly.</button>
+            <button type="button" class="btn btn-outline-secondary sample-question-btn" data-sample="Brake pedal is spongy and stopping distance has increased.">Brake pedal is spongy and stopping distance has increased.</button>
+            <button type="button" class="btn btn-outline-secondary sample-question-btn" data-sample="Bus won't start in the morning even with dashboard lights on.">Bus won't start in the morning even with dashboard lights on.</button>
+            <button type="button" class="btn btn-outline-secondary sample-question-btn" data-sample="Black smoke is coming from the exhaust while accelerating.">Black smoke is coming from the exhaust while accelerating.</button>
+            <button type="button" class="btn btn-outline-secondary sample-question-btn" data-sample="Air conditioning has weak cooling during afternoon trips.">Air conditioning has weak cooling during afternoon trips.</button>
+        </div>
+
+        <div id="chatbot-output" class="chatbot-output text-muted">
+            Recommendations will appear here.
         </div>
     </div>
 
@@ -455,6 +500,61 @@
         var modal = new bootstrap.Modal(document.getElementById('completeModal'));
         modal.show();
     }
+
+    // Maintenance chatbot
+    function getCookie(name) {
+        const cookies = document.cookie ? document.cookie.split(';') : [];
+        for (let i = 0; i < cookies.length; i += 1) {
+            const cookie = cookies[i].trim();
+            if (cookie.startsWith(name + '=')) {
+                return decodeURIComponent(cookie.slice(name.length + 1));
+            }
+        }
+        return '';
+    }
+
+    document.querySelectorAll('.sample-question-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+            document.getElementById('chatbot-issue').value = button.dataset.sample;
+        });
+    });
+
+    document.getElementById('maintenance-chatbot-form').addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const issueInput = document.getElementById('chatbot-issue');
+        const outputEl = document.getElementById('chatbot-output');
+        const issue = issueInput.value.trim();
+
+        if (!issue) {
+            outputEl.classList.remove('text-muted');
+            outputEl.innerHTML = '<strong>Please enter an issue description.</strong>';
+            return;
+        }
+
+        outputEl.classList.remove('text-muted');
+        outputEl.textContent = 'Loading recommendations...';
+
+        try {
+            const response = await fetch("{% url 'maintenance_chatbot' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: new URLSearchParams({ issue: issue }),
+            });
+
+            const data = await response.json();
+            const listItems = data.recommendations.map(function(item) {
+                return '<li>' + item + '</li>';
+            }).join('');
+            outputEl.innerHTML = '<div class="fw-semibold mb-1">Category: ' + data.category + '</div>' +
+                '<ul class="mb-1">' + listItems + '</ul>' +
+                '<div class="small text-muted">' + data.note + '</div>';
+        } catch (error) {
+            outputEl.innerHTML = '<strong>Unable to fetch recommendations right now. Please try again.</strong>';
+        }
+    });
 </script>
 </body>
 </html>

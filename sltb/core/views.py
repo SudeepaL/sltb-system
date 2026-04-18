@@ -15,6 +15,84 @@ from .models import (
 )
 from .revenue_simulator import simulate_trip_revenue, _is_peak
 
+MAINTENANCE_CHATBOT_RULES = [
+    {
+        'keywords': ['engine overheating', 'overheating', 'temperature warning', 'coolant leak'],
+        'title': 'Engine Overheating',
+        'recommendations': [
+            'Check coolant level and inspect for visible leaks around hoses, radiator, and water pump.',
+            'Inspect radiator fan operation and fan relay/fuse condition.',
+            'Pressure-test the cooling system and replace weak hose clamps or damaged hoses.',
+            'If overheating persists after coolant top-up, inspect thermostat and water pump flow.',
+        ],
+    },
+    {
+        'keywords': ['brake', 'spongy pedal', 'brake noise', 'poor braking'],
+        'title': 'Brake System Issue',
+        'recommendations': [
+            'Inspect brake fluid level and check for line or caliper leaks.',
+            'Inspect pad/shoe wear and disc/drum condition for scoring or glazing.',
+            'Bleed brake lines if pedal feels soft or spongy.',
+            'Test parking brake function and adjust linkage if travel is excessive.',
+        ],
+    },
+    {
+        'keywords': ['battery', 'not starting', 'won’t start', 'wont start', 'starter', 'alternator'],
+        'title': 'Starting / Electrical Issue',
+        'recommendations': [
+            'Measure battery voltage and load-test the battery before replacement.',
+            'Check alternator charging output and belt tension.',
+            'Inspect starter motor cable terminals for corrosion/looseness.',
+            'Check ignition and starter relay circuits for intermittent faults.',
+        ],
+    },
+    {
+        'keywords': ['smoke', 'black smoke', 'white smoke', 'blue smoke'],
+        'title': 'Abnormal Exhaust Smoke',
+        'recommendations': [
+            'For black smoke, inspect air filter restriction and injector spray quality.',
+            'For white smoke, inspect coolant ingress and compression balance.',
+            'For blue smoke, inspect turbo seals and engine oil consumption.',
+            'Run injector calibration/diagnostics and verify fuel quality.',
+        ],
+    },
+    {
+        'keywords': ['ac', 'air conditioning', 'no cooling', 'weak cooling'],
+        'title': 'HVAC Cooling Issue',
+        'recommendations': [
+            'Check refrigerant pressure and inspect for gas leaks.',
+            'Inspect compressor clutch engagement and electrical supply.',
+            'Clean condenser fins and verify condenser fan operation.',
+            'Inspect cabin filters and blower motor airflow performance.',
+        ],
+    },
+]
+
+
+def _maintenance_recommendations(issue_text):
+    issue = (issue_text or '').strip().lower()
+    if not issue:
+        return {
+            'category': 'No issue provided',
+            'recommendations': ['Please describe the bus issue so the assistant can suggest repair options.'],
+        }
+
+    for rule in MAINTENANCE_CHATBOT_RULES:
+        if any(keyword in issue for keyword in rule['keywords']):
+            return {
+                'category': rule['title'],
+                'recommendations': rule['recommendations'],
+            }
+
+    return {
+        'category': 'General Diagnostic Suggestion',
+        'recommendations': [
+            'Run a full visual inspection and record fault symptoms (noise, vibration, warning lamps).',
+            'Scan for ECU/diagnostic trouble codes and prioritize active faults.',
+            'Check fluid levels (engine oil, coolant, brake fluid, transmission) and leak points.',
+            'Perform a short road test after repairs to confirm issue resolution.',
+        ],
+    }
 
 def _module_buttons(active_module):
     items = [
@@ -828,6 +906,16 @@ def get_bus_mileage(request):
     except Bus.DoesNotExist:
         return JsonResponse({'mileage': 0, 'found': False})
 
+@require_POST
+def maintenance_chatbot(request):
+    issue = request.POST.get('issue', '')
+    recommendation = _maintenance_recommendations(issue)
+    return JsonResponse({
+        'issue': issue,
+        'category': recommendation['category'],
+        'recommendations': recommendation['recommendations'],
+        'note': 'These are guidance suggestions. Confirm safety-critical repairs with a qualified mechanic.',
+    })
 
 def get_outbound_for_return(request):
     """

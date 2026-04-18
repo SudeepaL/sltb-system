@@ -26,6 +26,7 @@ urlpatterns = [
     path('maintenance/', views.maintenance_dashboard, name='maintenance_dashboard'),
     path('maintenance/add/', views.add_maintenance, name='add_maintenance'),
     path('maintenance/bus-mileage/', views.get_bus_mileage, name='get_bus_mileage'),
+    path('maintenance/chatbot/', views.maintenance_chatbot, name='maintenance_chatbot'),
     path('maintenance/complete/<int:record_id>/', views.complete_maintenance, name='complete_maintenance'),
     path('trips/', views.bus_trip_welcome, name='bus_trip_welcome'),
     path('trips/bus/<int:bus_id>/confirmation/', views.driver_conductor_confirmation, name='driver_conductor_confirmation'),
