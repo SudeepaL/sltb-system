@@ -22,6 +22,7 @@ urlpatterns = [
     path('scheduling/', views.scheduling_dashboard, name='scheduling_dashboard'),
     path('scheduling/add/', views.add_schedule, name='add_schedule'),
     path('scheduling/outbound-for-return/', views.get_outbound_for_return, name='get_outbound_for_return'),
+    path('scheduling/resource-data/', views.get_schedule_resource_data, name='get_schedule_resource_data'),
     path('maintenance/', views.maintenance_dashboard, name='maintenance_dashboard'),
     path('maintenance/add/', views.add_maintenance, name='add_maintenance'),
     path('maintenance/bus-mileage/', views.get_bus_mileage, name='get_bus_mileage'),
@@ -33,4 +34,10 @@ urlpatterns = [
     path('fuel/', views.fuel_dashboard, name='fuel_dashboard'),
     path('fuel/refill/', views.fuel_refill, name='fuel_refill'),
     path('fuel/bus/<int:bus_id>/refuel/', views.bus_refuel, name='bus_refuel'),
+
+    # ── Revenue module ────────────────────────────────────────────────────────
+    path('revenue/', views.revenue_dashboard, name='revenue_dashboard'),
+    path('revenue/trip/<int:trip_id>/', views.trip_revenue_detail, name='trip_revenue_detail'),
+    path('revenue/trip/<int:trip_id>/simulate/', views.simulate_trip_revenue_view, name='simulate_trip_revenue'),
+    path('revenue/trip/<int:trip_id>/status/', views.revenue_api_status, name='revenue_api_status'),
 ]

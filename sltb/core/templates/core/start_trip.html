@@ -60,6 +60,86 @@
         .status-ongoing { background: #ffe484; color: #7f5b00; }
         .status-delayed { background: #ffc9c9; color: #8a0000; }
         .status-completed { background: #c5f3cc; color: #0f6a2f; }
+
+        /* ── Revenue live panel ── */
+        .revenue-live-panel {
+            background: #fff;
+            border: 2px solid #fbbf24;
+            border-radius: 14px;
+            padding: 16px 18px;
+            margin-bottom: 18px;
+        }
+        .rev-live-title {
+            font-weight: 800;
+            font-size: .85rem;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: #92400e;
+            margin-bottom: 10px;
+        }
+        .rev-counter-row {
+            display: flex;
+            gap: 12px;
+        }
+        .rev-counter-box {
+            flex: 1;
+            background: #fffbeb;
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+        }
+        .rev-counter-box .val {
+            font-size: 1.9rem;
+            font-weight: 900;
+            line-height: 1.1;
+        }
+        .rev-counter-box .lbl {
+            font-size: .75rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            margin-top: 2px;
+        }
+        .pax-color { color: #1374cf; }
+        .rev-color { color: #0d8f44; }
+
+        .route-progress-wrap {
+            margin-top: 12px;
+        }
+        .route-progress-bar-bg {
+            width: 100%;
+            background: #e5e7eb;
+            border-radius: 999px;
+            height: 8px;
+            overflow: hidden;
+        }
+        .route-progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #1374cf, #0d8f44);
+            border-radius: 999px;
+            transition: width .6s ease;
+        }
+        .live-dot {
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 1.2s infinite;
+            margin-right: 5px;
+        }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.25;} }
+
+        .peak-badge {
+            display: inline-block;
+            background: #fde68a;
+            color: #78350f;
+            font-weight: 700;
+            border-radius: 999px;
+            padding: 2px 10px;
+            font-size: .78rem;
+            margin-left: 8px;
+        }
     </style>
 </head>
 <body>
@@ -78,7 +158,9 @@
     <h1 class="panel-title"><strong>Start Trip</strong></h1>
 
     <section class="trip-meta">
-        <div><strong>Bus:</strong> {{ schedule.bus.bus_code }}</div>
+        <div><strong>Bus:</strong> {{ schedule.bus.bus_code }} ({{ schedule.bus.get_bus_type_display }})
+            {% if is_peak %}<span class="peak-badge">⚡ Peak Hour</span>{% endif %}
+        </div>
         <div><strong>Route:</strong> {{ schedule.timetable.route.start_location }} → {{ schedule.timetable.route.end_location }}</div>
         <div><strong>Driver:</strong> {{ schedule.driver.driver_name }} | <strong>Conductor:</strong> {{ schedule.conductor.conductor_name }}</div>
         <div><strong>Schedule Date:</strong> {{ schedule.date }}</div>
@@ -92,6 +174,37 @@
 
     {% if error_message %}
         <div class="alert alert-danger">{{ error_message }}</div>
+    {% endif %}
+
+    <!-- ── LIVE REVENUE PANEL (shown when trip is ongoing or delayed) ── -->
+    {% if trip.t_status == 'ONGOING' or trip.t_status == 'DELAYED' %}
+    <div class="revenue-live-panel" id="revLivePanel">
+        <div class="rev-live-title">
+            <span class="live-dot"></span>Live Passenger &amp; Revenue
+        </div>
+        <div class="rev-counter-row">
+            <div class="rev-counter-box">
+                <div class="val pax-color" id="livePaxCount">—</div>
+                <div class="lbl">Passengers Onboard</div>
+            </div>
+            <div class="rev-counter-box">
+                <div class="val rev-color" id="liveRevAmount">—</div>
+                <div class="lbl">Revenue (LKR)</div>
+            </div>
+        </div>
+        <div class="route-progress-wrap">
+            <div class="d-flex justify-content-between" style="font-size:.78rem; color:#6b7280; margin-bottom:4px;">
+                <span>Route progress</span>
+                <span id="stopsLabel">—</span>
+            </div>
+            <div class="route-progress-bar-bg">
+                <div class="route-progress-bar-fill" id="routeProgressFill" style="width:0%"></div>
+            </div>
+        </div>
+        <div class="mt-2 text-end">
+            <a href="{% url 'trip_revenue_detail' trip.id %}" style="font-size:.82rem; color:#1374cf;">View full stop breakdown →</a>
+        </div>
+    </div>
     {% endif %}
 
     {% if trip.t_status == 'NOT_STARTED' %}
@@ -138,6 +251,11 @@
     {% else %}
         <div class="alert alert-success">Trip completed successfully.</div>
         <a href="{% url 'current_schedules' schedule.bus.id %}" class="manage-btn">Back to Current Schedules</a>
+        {% if trip.revenue %}
+        <a href="{% url 'trip_revenue_detail' trip.id %}" class="manage-btn" style="background:#0d8f44; margin-top:8px; display:block; text-align:center;">
+            View Revenue Summary — LKR {{ trip.revenue.total_revenue|floatformat:2 }} ({{ trip.revenue.total_passengers }} pax)
+        </a>
+        {% endif %}
     {% endif %}
 </main>
 
@@ -169,10 +287,50 @@
         }
 
         render();
-        setInterval(() => {
-            seconds += 1;
-            render();
-        }, 1000);
+        setInterval(() => { seconds += 1; render(); }, 1000);
+    })();
+
+    /* ── Live revenue polling ── */
+    (function initLiveRevenue() {
+        const tripId = {{ trip.id }};
+        const status = "{{ trip.t_status }}";
+        if (status !== 'ONGOING' && status !== 'DELAYED') return;
+
+        const paxEl   = document.getElementById('livePaxCount');
+        const revEl   = document.getElementById('liveRevAmount');
+        const barEl   = document.getElementById('routeProgressFill');
+        const lblEl   = document.getElementById('stopsLabel');
+
+        function fmt(n) {
+            return 'LKR ' + Number(n).toLocaleString('en-LK', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+
+        function poll() {
+            fetch(`/revenue/trip/${tripId}/status/`)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.ok) return;
+                    if (paxEl) paxEl.textContent = data.passengers;
+                    if (revEl) revEl.textContent  = fmt(data.revenue);
+                    if (barEl && data.num_stops > 0) {
+                        const pct = Math.round((data.stops_passed / data.num_stops) * 100);
+                        barEl.style.width = pct + '%';
+                    }
+                    if (lblEl && data.num_stops > 0) {
+                        lblEl.textContent = data.stops_passed + ' / ' + data.num_stops + ' stops';
+                    }
+                })
+                .catch(() => {});
+        }
+
+        /* Trigger simulation on first load (if not yet simulated) */
+        fetch(`/revenue/trip/${tripId}/simulate/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+        }).then(() => poll());
+
+        poll();
+        setInterval(poll, 5000);
     })();
 </script>
 </body>

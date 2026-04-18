@@ -1,0 +1,197 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Revenue Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
+    <style>
+        .rev-card {
+            background: #fff;
+            border: 1px solid #dde3ec;
+            border-radius: 12px;
+            padding: 18px 22px;
+            margin-bottom: 16px;
+        }
+        .stat-box {
+            background: linear-gradient(135deg,#1374cf,#0a5499);
+            color: #fff;
+            border-radius: 12px;
+            padding: 18px 22px;
+            text-align: center;
+        }
+        .stat-box .stat-num {
+            font-size: 2rem;
+            font-weight: 800;
+        }
+        .stat-box .stat-label {
+            font-size: 0.82rem;
+            opacity: .85;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+        .stat-box.green  { background: linear-gradient(135deg,#0d8f44,#086632); }
+        .stat-box.orange { background: linear-gradient(135deg,#d97706,#b45309); }
+        .stat-box.purple { background: linear-gradient(135deg,#7c3aed,#5b21b6); }
+
+        .trip-row:hover { background:#f0f6ff; cursor:pointer; }
+        .badge-peak  { background:#fde68a; color:#78350f; font-weight:700; border-radius:999px; padding:3px 9px; font-size:.78rem; }
+        .badge-normal{ background:#d1fae5; color:#065f46; font-weight:700; border-radius:999px; padding:3px 9px; font-size:.78rem; }
+        .section-head { font-weight:800; font-size:1.1rem; margin:28px 0 12px; border-bottom:2px solid #e2e8f0; padding-bottom:6px; }
+        table { font-size:.9rem; }
+    </style>
+</head>
+<body>
+<header class="top-area">
+    <img src="{% static 'core/logo.jpg' %}" alt="SLTB Logo" class="logo">
+    <nav class="module-nav">
+        <div class="module-buttons">
+            {% for item in module_buttons %}
+                <a href="{{ item.url }}" class="module-btn {% if item.is_active %}active{% endif %}">{{ item.label }}</a>
+            {% endfor %}
+        </div>
+    </nav>
+</header>
+
+<div class="container-fluid" style="max-width:1200px; margin:28px auto; padding:0 18px;">
+    <h1 class="panel-title mb-4"><strong>Revenue Dashboard</strong></h1>
+
+    <!-- Summary stat boxes -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="stat-box green">
+                <div class="stat-num">LKR {{ summary.total_revenue|default:"0"|floatformat:0 }}</div>
+                <div class="stat-label">Total Revenue</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-box">
+                <div class="stat-num">{{ summary.total_passengers|default:0 }}</div>
+                <div class="stat-label">Total Passengers</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-box orange">
+                <div class="stat-num">{{ summary.total_trips|default:0 }}</div>
+                <div class="stat-label">Trips Recorded</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-box purple">
+                <div class="stat-num">LKR {{ summary.avg_revenue|default:"0"|floatformat:0 }}</div>
+                <div class="stat-label">Avg Revenue / Trip</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Per-route breakdown -->
+        <div class="col-md-6">
+            <div class="rev-card">
+                <div class="section-head">Revenue by Route</div>
+                {% if route_breakdown %}
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr>
+                        <th>Route</th><th>Trips</th><th>Passengers</th><th>Revenue (LKR)</th>
+                    </tr></thead>
+                    <tbody>
+                    {% for r in route_breakdown %}
+                    <tr>
+                        <td><strong>{{ r.trip__schedule__timetable__route__route_number }}</strong><br>
+                            <small class="text-muted">{{ r.trip__schedule__timetable__route__start_location }} → {{ r.trip__schedule__timetable__route__end_location }}</small>
+                        </td>
+                        <td>{{ r.trip_count }}</td>
+                        <td>{{ r.route_passengers }}</td>
+                        <td><strong>{{ r.route_revenue|floatformat:2 }}</strong></td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted">No revenue data yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Per-bus breakdown -->
+        <div class="col-md-6">
+            <div class="rev-card">
+                <div class="section-head">Revenue by Bus</div>
+                {% if bus_breakdown %}
+                <table class="table table-sm table-hover mb-0">
+                    <thead><tr>
+                        <th>Bus</th><th>Trips</th><th>Passengers</th><th>Revenue (LKR)</th>
+                    </tr></thead>
+                    <tbody>
+                    {% for b in bus_breakdown %}
+                    <tr>
+                        <td><strong>{{ b.trip__schedule__bus__bus_code }}</strong><br>
+                            <small class="text-muted">{{ b.trip__schedule__bus__bus_number }}</small>
+                        </td>
+                        <td>{{ b.trip_count }}</td>
+                        <td>{{ b.bus_passengers }}</td>
+                        <td><strong>{{ b.bus_revenue|floatformat:2 }}</strong></td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="text-muted">No revenue data yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent trip list -->
+    <div class="rev-card mt-4">
+        <div class="section-head">Recent Trip Revenue Records</div>
+        {% if trip_revenues %}
+        <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead><tr>
+                <th>Date</th>
+                <th>Bus</th>
+                <th>Route</th>
+                <th>Time</th>
+                <th>Passengers</th>
+                <th>Revenue (LKR)</th>
+                <th>Status</th>
+                <th></th>
+            </tr></thead>
+            <tbody>
+            {% for tr in trip_revenues %}
+            <tr class="trip-row" onclick="window.location='{% url 'trip_revenue_detail' tr.trip.id %}'">
+                <td>{{ tr.trip.schedule.date }}</td>
+                <td><strong>{{ tr.trip.schedule.bus.bus_code }}</strong></td>
+                <td>{{ tr.trip.schedule.timetable.route.route_number }}<br>
+                    <small class="text-muted">{{ tr.trip.schedule.timetable.route.start_location }} → {{ tr.trip.schedule.timetable.route.end_location }}</small>
+                </td>
+                <td>{{ tr.trip.schedule.timetable.departure_time }}</td>
+                <td>{{ tr.total_passengers }}</td>
+                <td><strong>{{ tr.total_revenue|floatformat:2 }}</strong></td>
+                <td>
+                    {% if tr.trip.t_status == 'ONGOING' %}
+                        <span class="badge bg-warning text-dark">Ongoing</span>
+                    {% elif tr.trip.t_status == 'COMPLETED' %}
+                        <span class="badge bg-success">Completed</span>
+                    {% elif tr.trip.t_status == 'DELAYED' %}
+                        <span class="badge bg-danger">Delayed</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ tr.trip.get_t_status_display }}</span>
+                    {% endif %}
+                </td>
+                <td><a href="{% url 'trip_revenue_detail' tr.trip.id %}" class="btn btn-sm btn-outline-primary">View</a></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p class="text-muted">No revenue records yet. Revenue is generated automatically when a trip is started.</p>
+        {% endif %}
+    </div>
+</div>
+</body>
+</html>

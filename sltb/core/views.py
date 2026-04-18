@@ -1,27 +1,75 @@
+from django.db import models
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 from datetime import datetime, timedelta
+from decimal import Decimal
+
 from .forms import BusForm, BusMaintenanceForm, ConductorForm, DriverForm, RouteForm, ScheduleForm, StopForm, TimeTableForm
-from .models import Bus, BusMaintenance, BusRefuelLog, Conductor, DepotFuelTank, Driver, Route, Schedule, RouteStop, Stop, TimeTable, Trip
+from .models import (
+    Bus, BusMaintenance, BusRefuelLog, Conductor, DepotFuelTank,
+    Driver, Route, Schedule, RouteStop, Stop, TimeTable, Trip,
+    TripRevenue, PassengerBoardingLog,
+)
+from .revenue_simulator import simulate_trip_revenue, _is_peak
+
 
 def _module_buttons(active_module):
     items = [
-        {'label': 'Buses', 'url': reverse('bus_dashboard'), 'key': 'buses'},
-        {'label': 'Drivers', 'url': reverse('driver_dashboard'), 'key': 'drivers'},
-        {'label': 'Conductors', 'url': reverse('conductor_dashboard'), 'key': 'conductors'},
-        {'label': 'Manage Routes', 'url': reverse('route_dashboard'), 'key': 'manage_routes'},
-        {'label': 'View Timetable', 'url': reverse('timetable_dashboard'), 'key': 'view_timetable'},
-        {'label': 'Scheduling', 'url': reverse('scheduling_dashboard'), 'key': 'scheduling'},
-        {'label': 'Fuel Usage', 'url': reverse('fuel_dashboard'), 'key': 'fuel_usage'},
-        {'label': 'Maintenance', 'url': reverse('maintenance_dashboard'), 'key': 'maintenance'},
-        {'label': 'Current Trips', 'url': reverse('bus_trip_welcome'), 'key': 'current_trips'},
-        
+        {'label': 'Buses',         'url': reverse('bus_dashboard'),       'key': 'buses'},
+        {'label': 'Drivers',       'url': reverse('driver_dashboard'),    'key': 'drivers'},
+        {'label': 'Conductors',    'url': reverse('conductor_dashboard'), 'key': 'conductors'},
+        {'label': 'Manage Routes', 'url': reverse('route_dashboard'),     'key': 'manage_routes'},
+        {'label': 'View Timetable','url': reverse('timetable_dashboard'), 'key': 'view_timetable'},
+        {'label': 'Scheduling',    'url': reverse('scheduling_dashboard'),'key': 'scheduling'},
+        {'label': 'Fuel Usage',    'url': reverse('fuel_dashboard'),      'key': 'fuel_usage'},
+        {'label': 'Maintenance',   'url': reverse('maintenance_dashboard'),'key': 'maintenance'},
+        {'label': 'Current Trips', 'url': reverse('bus_trip_welcome'),    'key': 'current_trips'},
+        {'label': 'Revenue',       'url': reverse('revenue_dashboard'),   'key': 'revenue'},
     ]
     for item in items:
         item['is_active'] = item['key'] == active_module
     return items
+
+
+# ── Revenue helpers ───────────────────────────────────────────────────────────
+
+def _run_simulation(trip):
+    """
+    Run the passenger simulation for *trip* and persist the results.
+    Idempotent: if a TripRevenue already exists it is replaced.
+    Returns the TripRevenue instance.
+    """
+    TripRevenue.objects.filter(trip=trip).delete()
+
+    result = simulate_trip_revenue(trip)
+
+    trip_revenue = TripRevenue.objects.create(
+        trip=trip,
+        total_passengers=result['total_passengers'],
+        total_revenue=result['total_revenue'],
+        is_simulated=True,
+    )
+
+    PassengerBoardingLog.objects.bulk_create([
+        PassengerBoardingLog(
+            trip_revenue=trip_revenue,
+            stop_name=s['stop_name'],
+            stop_order=s['stop_order'],
+            passengers_boarded=s['passengers_boarded'],
+            passengers_alighted=s['passengers_alighted'],
+            fare_per_passenger=s['fare_per_passenger'],
+            stop_revenue=s['stop_revenue'],
+            cumulative_passengers=s['cumulative_passengers'],
+            cumulative_revenue=s['cumulative_revenue'],
+        )
+        for s in result['stops']
+    ])
+
+    return trip_revenue
+
 
 # Create your views here.
 def _get_bus_trip_rows():
@@ -499,6 +547,201 @@ def add_schedule(request):
     )
 
 
+def get_schedule_resource_data(request):
+    """
+    AJAX endpoint: returns buses, drivers, conductors with statuses,
+    their schedules, fuel levels, and route experience counts for AI-assisted
+    scheduling recommendations.
+    """
+    timetable_id = request.GET.get('timetable_id')
+    date_str = request.GET.get('date')
+
+    route_distance = None
+    route_id = None
+    direction = None
+
+    if timetable_id:
+        try:
+            tt = TimeTable.objects.select_related('route').get(id=timetable_id)
+            route_distance = tt.route.distance
+            route_id = tt.route.id
+            direction = tt.direction
+        except TimeTable.DoesNotExist:
+            pass
+
+    # ── Fuel threshold logic ──────────────────────────────────────────────────
+    def min_fuel_required(distance):
+        if distance is None:
+            return 0
+        if distance > 100:
+            return 100
+        if distance > 60:
+            return 120
+        if distance > 18:
+            return 70
+        if distance > 10:
+            return 50
+        return 0
+
+    min_fuel = min_fuel_required(route_distance)
+
+    # ── Buses ─────────────────────────────────────────────────────────────────
+    all_buses = Bus.objects.all().order_by('bus_code')
+    bus_schedules_qs = Schedule.objects.select_related(
+        'timetable__route', 'bus'
+    ).exclude(status__in=['COMPLETED', 'CANCELLED']).order_by('date', 'timetable__departure_time')
+
+    bus_schedule_map = {}
+    for s in bus_schedules_qs:
+        bid = s.bus_id
+        if bid not in bus_schedule_map:
+            bus_schedule_map[bid] = []
+        bus_schedule_map[bid].append({
+            'id': s.id,
+            'date': str(s.date),
+            'route': s.timetable.route.route_number,
+            'departure': str(s.timetable.departure_time),
+            'direction': s.timetable.direction,
+            'status': s.status,
+        })
+
+    buses = []
+    for bus in all_buses:
+        fuel = bus.current_fuel_liters or 0
+        meets_fuel = (fuel >= min_fuel) if min_fuel > 0 else True
+        buses.append({
+            'id': bus.id,
+            'code': bus.bus_code,
+            'number': bus.bus_number,
+            'status': bus.status,
+            'fuel': round(fuel, 1),
+            'min_fuel': min_fuel,
+            'meets_fuel': meets_fuel,
+            'recommended_fuel': meets_fuel and bus.status == 'AVAILABLE',
+            'schedules': bus_schedule_map.get(bus.id, []),
+        })
+
+    # Sort: available first, then by fuel desc
+    buses.sort(key=lambda b: (
+        0 if b['status'] == 'AVAILABLE' else 1,
+        -b['fuel']
+    ))
+
+    # ── Drivers ───────────────────────────────────────────────────────────────
+    all_drivers = Driver.objects.all().order_by('driver_name')
+    driver_schedules_qs = Schedule.objects.select_related(
+        'timetable__route', 'driver'
+    ).filter(driver__isnull=False).exclude(
+        status__in=['COMPLETED', 'CANCELLED']
+    ).order_by('date', 'timetable__departure_time')
+
+    driver_schedule_map = {}
+    for s in driver_schedules_qs:
+        did = s.driver_id
+        if did not in driver_schedule_map:
+            driver_schedule_map[did] = []
+        driver_schedule_map[did].append({
+            'id': s.id,
+            'date': str(s.date),
+            'route': s.timetable.route.route_number,
+            'departure': str(s.timetable.departure_time),
+            'direction': s.timetable.direction,
+            'status': s.status,
+        })
+
+    # Route experience: count completed trips on the same route (both directions)
+    driver_experience_map = {}
+    if route_id:
+        completed_schedules = Schedule.objects.filter(
+            timetable__route_id=route_id,
+            status='COMPLETED',
+            driver__isnull=False,
+        ).values('driver_id').annotate(trip_count=models.Count('id'))
+        for row in completed_schedules:
+            driver_experience_map[row['driver_id']] = row['trip_count']
+
+    drivers = []
+    for driver in all_drivers:
+        exp = driver_experience_map.get(driver.id, 0)
+        experienced = exp >= 10
+        drivers.append({
+            'id': driver.id,
+            'name': driver.driver_name,
+            'status': driver.driver_status,
+            'experience': exp,
+            'experienced': experienced,
+            'recommended': experienced and driver.driver_status == 'AVAILABLE',
+            'schedules': driver_schedule_map.get(driver.id, []),
+        })
+
+    # Sort: available + experienced first
+    drivers.sort(key=lambda d: (
+        0 if d['status'] == 'AVAILABLE' else 1,
+        0 if d['experienced'] else 1,
+        -d['experience']
+    ))
+
+    # ── Conductors ────────────────────────────────────────────────────────────
+    all_conductors = Conductor.objects.all().order_by('conductor_name')
+    conductor_schedules_qs = Schedule.objects.select_related(
+        'timetable__route', 'conductor'
+    ).filter(conductor__isnull=False).exclude(
+        status__in=['COMPLETED', 'CANCELLED']
+    ).order_by('date', 'timetable__departure_time')
+
+    conductor_schedule_map = {}
+    for s in conductor_schedules_qs:
+        cid = s.conductor_id
+        if cid not in conductor_schedule_map:
+            conductor_schedule_map[cid] = []
+        conductor_schedule_map[cid].append({
+            'id': s.id,
+            'date': str(s.date),
+            'route': s.timetable.route.route_number,
+            'departure': str(s.timetable.departure_time),
+            'direction': s.timetable.direction,
+            'status': s.status,
+        })
+
+    conductor_experience_map = {}
+    if route_id:
+        completed_conductor = Schedule.objects.filter(
+            timetable__route_id=route_id,
+            status='COMPLETED',
+            conductor__isnull=False,
+        ).values('conductor_id').annotate(trip_count=models.Count('id'))
+        for row in completed_conductor:
+            conductor_experience_map[row['conductor_id']] = row['trip_count']
+
+    conductors = []
+    for conductor in all_conductors:
+        exp = conductor_experience_map.get(conductor.id, 0)
+        experienced = exp >= 10
+        conductors.append({
+            'id': conductor.id,
+            'name': conductor.conductor_name,
+            'status': conductor.conductor_status,
+            'experience': exp,
+            'experienced': experienced,
+            'recommended': experienced and conductor.conductor_status == 'AVAILABLE',
+            'schedules': conductor_schedule_map.get(conductor.id, []),
+        })
+
+    conductors.sort(key=lambda c: (
+        0 if c['status'] == 'AVAILABLE' else 1,
+        0 if c['experienced'] else 1,
+        -c['experience']
+    ))
+
+    return JsonResponse({
+        'buses': buses,
+        'drivers': drivers,
+        'conductors': conductors,
+        'route_distance': route_distance,
+        'min_fuel': min_fuel,
+    })
+
+
 def maintenance_dashboard(request):
     buses = Bus.objects.order_by('bus_code')
     selected_bus_code = request.GET.get('bus_code', '')
@@ -787,12 +1030,21 @@ def start_trip(request, schedule_id):
     if trip.t_status == 'DELAYED' and trip.delay_started_at:
         delay_elapsed_seconds = int((timezone.now() - trip.delay_started_at).total_seconds())
 
+    # Peak-hour badge
+    is_peak = _is_peak(schedule.timetable.departure_time)
+
+    # Auto-run revenue simulation the moment trip becomes ONGOING
+    if trip.t_status == 'ONGOING':
+        if not TripRevenue.objects.filter(trip=trip).exists():
+            _run_simulation(trip)
+
     context = {
         'schedule': schedule,
         'trip': trip,
         'error_message': error_message,
         'delay_elapsed_seconds': delay_elapsed_seconds,
         'module_buttons': _module_buttons('current_trips'),
+        'is_peak': is_peak,
     }
     return render(request, 'core/start_trip.html', context)
 
@@ -928,3 +1180,165 @@ def bus_refuel(request, bus_id):
         return redirect('current_schedules', bus_id=bus.id)
 
     return redirect('current_schedules', bus_id=bus.id)
+
+
+# ── Revenue views ─────────────────────────────────────────────────────────────
+
+def revenue_dashboard(request):
+    """Overview dashboard: per-trip revenue cards + summary stats."""
+    from django.db.models import Sum, Count, Avg
+
+    trip_revenues = (
+        TripRevenue.objects
+        .select_related(
+            'trip__schedule__bus',
+            'trip__schedule__timetable__route',
+            'trip__schedule__driver',
+            'trip__schedule__conductor',
+        )
+        .order_by('-created_at')[:200]
+    )
+
+    # Split into two aggregate calls to avoid Django's name-collision bug
+    # where a field name (e.g. 'total_revenue') clashes with a Sum alias.
+    summary_totals = TripRevenue.objects.aggregate(
+        total_revenue=Sum('total_revenue'),
+        total_passengers=Sum('total_passengers'),
+        total_trips=Count('id'),
+    )
+    summary_avgs = TripRevenue.objects.aggregate(
+        avg_revenue=Avg('total_revenue'),
+        avg_passengers=Avg('total_passengers'),
+    )
+    summary = {**summary_totals, **summary_avgs}
+
+    route_breakdown = (
+        TripRevenue.objects
+        .values(
+            'trip__schedule__timetable__route__route_number',
+            'trip__schedule__timetable__route__start_location',
+            'trip__schedule__timetable__route__end_location',
+        )
+        .annotate(
+            route_revenue=Sum('total_revenue'),
+            route_passengers=Sum('total_passengers'),
+            trip_count=Count('id'),
+        )
+        .order_by('-route_revenue')
+    )
+
+    bus_breakdown = (
+        TripRevenue.objects
+        .values(
+            'trip__schedule__bus__bus_code',
+            'trip__schedule__bus__bus_number',
+        )
+        .annotate(
+            bus_revenue=Sum('total_revenue'),
+            bus_passengers=Sum('total_passengers'),
+            trip_count=Count('id'),
+        )
+        .order_by('-bus_revenue')
+    )
+
+    context = {
+        'trip_revenues': trip_revenues,
+        'summary': summary,
+        'route_breakdown': list(route_breakdown),
+        'bus_breakdown': list(bus_breakdown),
+        'module_buttons': _module_buttons('revenue'),
+    }
+    return render(request, 'core/revenue_dashboard.html', context)
+
+
+def trip_revenue_detail(request, trip_id):
+    """Per-trip breakdown: stop-by-stop boarding log."""
+    trip = get_object_or_404(
+        Trip.objects.select_related(
+            'schedule__bus',
+            'schedule__driver',
+            'schedule__conductor',
+            'schedule__timetable__route',
+        ),
+        id=trip_id,
+    )
+
+    try:
+        trip_revenue = trip.revenue
+        boarding_logs = trip_revenue.boarding_logs.all()
+    except TripRevenue.DoesNotExist:
+        trip_revenue = None
+        boarding_logs = []
+
+    context = {
+        'trip': trip,
+        'trip_revenue': trip_revenue,
+        'boarding_logs': boarding_logs,
+        'module_buttons': _module_buttons('revenue'),
+    }
+    return render(request, 'core/trip_revenue_detail.html', context)
+
+
+@require_POST
+def simulate_trip_revenue_view(request, trip_id):
+    """
+    AJAX POST – triggered by the trip page JS when the trip goes ONGOING.
+    Runs the simulation (idempotent) and returns totals as JSON.
+    """
+    trip = get_object_or_404(Trip, id=trip_id)
+    trip_revenue = _run_simulation(trip)
+
+    return JsonResponse({
+        'ok': True,
+        'total_passengers': trip_revenue.total_passengers,
+        'total_revenue': str(trip_revenue.total_revenue),
+    })
+
+
+def revenue_api_status(request, trip_id):
+    """
+    GET – polled every 5 s by the trip page while the trip is ONGOING.
+    Returns a live (time-interpolated) view of passengers and revenue.
+    """
+    trip = get_object_or_404(Trip, id=trip_id)
+
+    try:
+        tr = trip.revenue
+        elapsed_minutes = 0
+        if trip.actual_departure_time:
+            elapsed = timezone.now() - trip.actual_departure_time
+            elapsed_minutes = int(elapsed.total_seconds() / 60)
+
+        route = trip.schedule.timetable.route
+        duration_minutes = (
+            int(route.estimated_duration.total_seconds() / 60)
+            if route.estimated_duration else 60
+        )
+        duration_minutes = max(1, duration_minutes)
+
+        logs = list(tr.boarding_logs.order_by('stop_order'))
+        num_stops = len(logs)
+
+        stops_passed = 0
+        if num_stops:
+            stops_passed = max(1, int((elapsed_minutes / duration_minutes) * num_stops))
+            stops_passed = min(stops_passed, num_stops)
+            visible_log = logs[stops_passed - 1]
+            live_passengers = visible_log.cumulative_passengers
+            live_revenue = float(visible_log.cumulative_revenue)
+        else:
+            live_passengers = tr.total_passengers
+            live_revenue = float(tr.total_revenue)
+
+        return JsonResponse({
+            'ok': True,
+            'passengers': live_passengers,
+            'revenue': live_revenue,
+            'total_passengers': tr.total_passengers,
+            'total_revenue': float(tr.total_revenue),
+            'stops_passed': stops_passed,
+            'num_stops': num_stops,
+        })
+
+    except TripRevenue.DoesNotExist:
+        return JsonResponse({'ok': False, 'passengers': 0, 'revenue': 0.0})

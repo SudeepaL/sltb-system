@@ -8,6 +8,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
     <style>
+        /* ── Autofill notice ─────────────────────────────────────────── */
         .autofill-notice {
             display: none;
             background: #e8f5e9;
@@ -20,7 +21,8 @@
         }
         .autofill-notice.show { display: flex; align-items: center; gap: 8px; }
         .autofill-notice .icon { font-size: 1.2rem; }
-        .field-locked select {
+
+        .field-locked .custom-select-trigger {
             background-color: #f1f8e9 !important;
             border-color: #81c784 !important;
         }
@@ -31,6 +33,195 @@
             margin-top: 3px;
         }
         .lock-badge.show { display: block; }
+
+        /* ── Custom dropdown panel ───────────────────────────────────── */
+        .custom-select-wrapper { position: relative; }
+
+        .custom-select-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 0.95rem;
+            min-height: 40px;
+            user-select: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .custom-select-trigger:hover { border-color: #86b7fe; }
+        .custom-select-trigger.open  {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 3px rgba(13,110,253,.12);
+        }
+        .custom-select-trigger .arrow {
+            font-size: 0.7rem;
+            color: #666;
+            transition: transform 0.2s;
+            flex-shrink: 0;
+        }
+        .custom-select-trigger.open .arrow { transform: rotate(180deg); }
+
+        .custom-dropdown-panel {
+            display: none;
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0; right: 0;
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            box-shadow: 0 8px 28px rgba(0,0,0,.14);
+            z-index: 9999;
+            max-height: 440px;
+            overflow: hidden;
+            flex-direction: column;
+        }
+        .custom-dropdown-panel.open { display: flex; }
+
+        .dropdown-search {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            flex-shrink: 0;
+        }
+        .dropdown-search input {
+            width: 100%;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 0.88rem;
+            outline: none;
+        }
+        .dropdown-search input:focus { border-color: #86b7fe; }
+
+        .dropdown-list { overflow-y: auto; flex: 1; }
+
+        /* Section headers */
+        .dropdown-section-header {
+            padding: 6px 12px 4px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #888;
+            background: #fafafa;
+            border-bottom: 1px solid #f0f0f0;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        /* Individual option rows */
+        .dropdown-option {
+            padding: 10px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid #f8f8f8;
+            transition: background 0.1s;
+        }
+        .dropdown-option:hover:not(.unavailable) { background: #f0f7ff; }
+        .dropdown-option.selected { background: #e3f0ff; }
+        .dropdown-option.unavailable {
+            opacity: 0.55;
+            cursor: default;
+            background: #fafafa;
+        }
+        .dropdown-option.opt-none { color: #888; font-style: italic; }
+
+        .opt-main-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .opt-label { font-weight: 600; font-size: 0.93rem; flex: 1; min-width: 120px; }
+        .opt-badges { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+
+        /* Status badges */
+        .badge-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.73rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .badge-available   { background: #d4edda; color: #155724; }
+        .badge-on-route    { background: #fff3cd; color: #856404; }
+        .badge-on-duty     { background: #fff3cd; color: #856404; }
+        .badge-off-duty    { background: #f8d7da; color: #721c24; }
+        .badge-maintenance { background: #f8d7da; color: #721c24; }
+
+        /* Recommendation badges */
+        .badge-recommend {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .badge-fuel-ok     { background: #cce5ff; color: #004085; }
+        .badge-experienced { background: #e2d9f3; color: #3d1a78; }
+        .badge-warn        { background: #f8d7da; color: #721c24; }
+
+        /* Fuel bar */
+        .fuel-bar-wrap { margin-top: 5px; }
+        .fuel-bar-bg {
+            height: 5px;
+            background: #eee;
+            border-radius: 4px;
+            overflow: hidden;
+            width: 100%;
+        }
+        .fuel-bar-fill { height: 100%; border-radius: 4px; }
+        .fuel-label {
+            font-size: 0.75rem;
+            color: #555;
+            margin-top: 2px;
+        }
+
+        /* Schedule pills */
+        .schedule-pills { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px; }
+        .schedule-pill {
+            background: #f0f0f0;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 0.7rem;
+            color: #444;
+        }
+        .schedule-pill.ongoing   { background: #fff3cd; color: #856404; }
+        .schedule-pill.scheduled { background: #d4edda; color: #155724; }
+
+        /* Fuel info box */
+        .fuel-req-box {
+            display: none;
+            margin-top: 6px;
+            padding: 8px 12px;
+            background: #fff8e1;
+            border: 1px solid #ffe082;
+            border-radius: 6px;
+            font-size: 0.82rem;
+            color: #5d4037;
+        }
+        .fuel-req-box.show { display: block; }
+
+        /* Loading state */
+        .dropdown-loading {
+            padding: 20px;
+            text-align: center;
+            color: #888;
+            font-size: 0.88rem;
+        }
+
+        /* Hidden real selects (used for form submission only) */
+        .hidden-select { display: none !important; }
+
+        /* Trigger text */
+        .trigger-placeholder { color: #888; }
     </style>
 </head>
 <body>
@@ -56,39 +247,94 @@
     <form method="post" class="manage-form form-shell" id="schedule-form">
         {% csrf_token %}
 
+        <!-- Timetable -->
         <p>
             <label for="{{ form.timetable.id_for_label }}">{{ form.timetable.label }}:</label>
             {{ form.timetable }}
             {% if form.timetable.errors %}<span class="errorlist">{{ form.timetable.errors }}</span>{% endif %}
         </p>
 
+        <!-- Date -->
         <p>
             <label for="{{ form.date.id_for_label }}">{{ form.date.label }}:</label>
             {{ form.date }}
             {% if form.date.errors %}<span class="errorlist">{{ form.date.errors }}</span>{% endif %}
         </p>
 
+        <!-- ── Bus ─────────────────────────────────────────────────────── -->
         <p id="bus-field-wrapper">
-            <label for="{{ form.bus.id_for_label }}">{{ form.bus.label }}:</label>
-            {{ form.bus }}
+            <label>{{ form.bus.label }}:</label>
+            <div class="custom-select-wrapper" id="bus-custom-wrapper">
+                <select name="{{ form.bus.html_name }}" id="{{ form.bus.id_for_label }}" class="hidden-select">
+                    <option value="">---------</option>
+                </select>
+                <div class="custom-select-trigger" id="bus-trigger" tabindex="0">
+                    <span id="bus-trigger-text" class="trigger-placeholder">Select a bus…</span>
+                    <span class="arrow">▼</span>
+                </div>
+                <div class="custom-dropdown-panel" id="bus-panel">
+                    <div class="dropdown-search">
+                        <input type="text" id="bus-search" placeholder="Search buses…">
+                    </div>
+                    <div class="dropdown-list" id="bus-list">
+                        <div class="dropdown-loading">Select a timetable and date to load available buses.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="fuel-req-box" id="fuel-req-box"></div>
             <small class="lock-badge" id="bus-lock-badge">&#128274; Auto-filled from outbound trip</small>
             {% if form.bus.errors %}<span class="errorlist">{{ form.bus.errors }}</span>{% endif %}
         </p>
 
+        <!-- ── Driver ──────────────────────────────────────────────────── -->
         <p id="driver-field-wrapper">
-            <label for="{{ form.driver.id_for_label }}">{{ form.driver.label }}:</label>
-            {{ form.driver }}
+            <label>{{ form.driver.label }}:</label>
+            <div class="custom-select-wrapper" id="driver-custom-wrapper">
+                <select name="{{ form.driver.html_name }}" id="{{ form.driver.id_for_label }}" class="hidden-select">
+                    <option value="">---------</option>
+                </select>
+                <div class="custom-select-trigger" id="driver-trigger" tabindex="0">
+                    <span id="driver-trigger-text" class="trigger-placeholder">Select a driver…</span>
+                    <span class="arrow">▼</span>
+                </div>
+                <div class="custom-dropdown-panel" id="driver-panel">
+                    <div class="dropdown-search">
+                        <input type="text" id="driver-search" placeholder="Search drivers…">
+                    </div>
+                    <div class="dropdown-list" id="driver-list">
+                        <div class="dropdown-loading">Select a timetable and date to load drivers.</div>
+                    </div>
+                </div>
+            </div>
             <small class="lock-badge" id="driver-lock-badge">&#128274; Auto-filled from outbound trip</small>
             {% if form.driver.errors %}<span class="errorlist">{{ form.driver.errors }}</span>{% endif %}
         </p>
 
+        <!-- ── Conductor ────────────────────────────────────────────────── -->
         <p id="conductor-field-wrapper">
-            <label for="{{ form.conductor.id_for_label }}">{{ form.conductor.label }}:</label>
-            {{ form.conductor }}
+            <label>{{ form.conductor.label }}:</label>
+            <div class="custom-select-wrapper" id="conductor-custom-wrapper">
+                <select name="{{ form.conductor.html_name }}" id="{{ form.conductor.id_for_label }}" class="hidden-select">
+                    <option value="">---------</option>
+                </select>
+                <div class="custom-select-trigger" id="conductor-trigger" tabindex="0">
+                    <span id="conductor-trigger-text" class="trigger-placeholder">Select a conductor…</span>
+                    <span class="arrow">▼</span>
+                </div>
+                <div class="custom-dropdown-panel" id="conductor-panel">
+                    <div class="dropdown-search">
+                        <input type="text" id="conductor-search" placeholder="Search conductors…">
+                    </div>
+                    <div class="dropdown-list" id="conductor-list">
+                        <div class="dropdown-loading">Select a timetable and date to load conductors.</div>
+                    </div>
+                </div>
+            </div>
             <small class="lock-badge" id="conductor-lock-badge">&#128274; Auto-filled from outbound trip</small>
             {% if form.conductor.errors %}<span class="errorlist">{{ form.conductor.errors }}</span>{% endif %}
         </p>
 
+        <!-- Status -->
         <p>
             <label for="{{ form.status.id_for_label }}">{{ form.status.label }}:</label>
             {{ form.status }}
@@ -103,80 +349,385 @@
 </main>
 
 <script>
-    const OUTBOUND_API_URL = "{% url 'get_outbound_for_return' %}";
+const OUTBOUND_API_URL  = "{% url 'get_outbound_for_return' %}";
+const RESOURCE_DATA_URL = "{% url 'get_schedule_resource_data' %}";
 
-    const timetableSelect = document.getElementById('{{ form.timetable.id_for_label }}');
-    const dateInput       = document.getElementById('{{ form.date.id_for_label }}');
-    const busSelect       = document.getElementById('{{ form.bus.id_for_label }}');
-    const driverSelect    = document.getElementById('{{ form.driver.id_for_label }}');
-    const conductorSelect = document.getElementById('{{ form.conductor.id_for_label }}');
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const timetableSelect = document.getElementById('{{ form.timetable.id_for_label }}');
+const dateInput       = document.getElementById('{{ form.date.id_for_label }}');
+const busRealSelect        = document.getElementById('{{ form.bus.id_for_label }}');
+const driverRealSelect     = document.getElementById('{{ form.driver.id_for_label }}');
+const conductorRealSelect  = document.getElementById('{{ form.conductor.id_for_label }}');
+const notice               = document.getElementById('autofill-notice');
+const noticeMsg            = document.getElementById('autofill-message');
+const busWrapper           = document.getElementById('bus-field-wrapper');
+const driverWrapper        = document.getElementById('driver-field-wrapper');
+const conductorWrapper     = document.getElementById('conductor-field-wrapper');
+const busLock              = document.getElementById('bus-lock-badge');
+const driverLock           = document.getElementById('driver-lock-badge');
+const conductorLock        = document.getElementById('conductor-lock-badge');
+const fuelReqBox           = document.getElementById('fuel-req-box');
 
-    const notice          = document.getElementById('autofill-notice');
-    const noticeMsg       = document.getElementById('autofill-message');
-    const busWrapper      = document.getElementById('bus-field-wrapper');
-    const driverWrapper   = document.getElementById('driver-field-wrapper');
-    const conductorWrapper= document.getElementById('conductor-field-wrapper');
-    const busLock         = document.getElementById('bus-lock-badge');
-    const driverLock      = document.getElementById('driver-lock-badge');
-    const conductorLock   = document.getElementById('conductor-lock-badge');
+// ── State ─────────────────────────────────────────────────────────────────────
+let resourceData     = null;
+let selectedBusId    = '';
+let selectedDriverId = '';
+let selectedConductorId = '';
 
-    function lockField(wrapper, lock) {
-        wrapper.classList.add('field-locked');
-        lock.classList.add('show');
+// ── Utility ───────────────────────────────────────────────────────────────────
+const statusBadgeClass = s => ({
+    AVAILABLE: 'badge-available', ON_ROUTE: 'badge-on-route',
+    ON_DUTY: 'badge-on-duty', OFF_DUTY: 'badge-off-duty', MAINTENANCE: 'badge-maintenance',
+}[(s||'').toUpperCase()] || 'badge-off-duty');
+
+const statusLabel = s => ({
+    AVAILABLE: 'Available', ON_ROUTE: 'On Route',
+    ON_DUTY: 'On Duty', OFF_DUTY: 'Off Duty', MAINTENANCE: 'Maintenance',
+}[(s||'').toUpperCase()] || s || 'Unknown');
+
+const pillClass = s => ({'ONGOING':'ongoing','SCHEDULED':'scheduled'}[s] || '');
+
+function schedulePillHtml(sc) {
+    return `<span class="schedule-pill ${pillClass(sc.status)}">${sc.route} ${sc.departure.slice(0,5)} (${sc.direction.toLowerCase()}) — ${sc.date}</span>`;
+}
+
+function fuelBarHtml(fuel) {
+    const max = 200;
+    const pct = Math.min(100, (fuel / max) * 100).toFixed(1);
+    const col = fuel < 50 ? '#e53935' : fuel < 100 ? '#fb8c00' : '#43a047';
+    return `<div class="fuel-bar-wrap">
+        <div class="fuel-bar-bg"><div class="fuel-bar-fill" style="width:${pct}%;background:${col}"></div></div>
+        <div class="fuel-label">⛽ ${fuel} L</div>
+    </div>`;
+}
+
+// ── Build option HTML ─────────────────────────────────────────────────────────
+function buildBusOption(bus, selId) {
+    const isSel   = String(bus.id) === String(selId);
+    const unavail = bus.status !== 'AVAILABLE';
+    let badges = `<span class="badge-status ${statusBadgeClass(bus.status)}">${statusLabel(bus.status)}</span>`;
+    if (bus.status === 'AVAILABLE') {
+        badges += `<span class="badge-status badge-available" style="background:#b2dfdb;color:#00695c;">Available</span>`;
+    }
+    if (bus.recommended_fuel) {
+        badges += `<span class="badge-recommend badge-fuel-ok">⭐ Recommended</span>`;
+    }
+    if (!unavail && bus.meets_fuel && resourceData.min_fuel > 0) {
+        badges += `<span class="badge-recommend badge-fuel-ok">✔ Fuel OK</span>`;
+    } else if (!unavail && !bus.meets_fuel && resourceData.min_fuel > 0) {
+        badges += `<span class="badge-recommend badge-warn">⚠ Low Fuel</span>`;
+    }
+    const pills = (bus.schedules||[]).map(schedulePillHtml).join('');
+    return `<div class="dropdown-option${isSel?' selected':''}${unavail?' unavailable':''}"
+        data-id="${bus.id}" data-label="${bus.code} (${bus.number})">
+        <div class="opt-main-row">
+            <span class="opt-label">${bus.code} — ${bus.number}</span>
+            <span class="opt-badges">${badges}</span>
+        </div>
+        ${fuelBarHtml(bus.fuel)}
+        ${pills ? `<div class="schedule-pills">${pills}</div>` : ''}
+    </div>`;
+}
+
+function buildDriverOption(driver, selId) {
+    const isSel   = String(driver.id) === String(selId);
+    const unavail = driver.status !== 'AVAILABLE';
+    let badges = `<span class="badge-status ${statusBadgeClass(driver.status)}">${statusLabel(driver.status)}</span>`;
+    if (driver.recommended) badges += `<span class="badge-recommend badge-experienced">⭐ Best Match</span>`;
+    if (driver.experienced) {
+        badges += `<span class="badge-recommend badge-experienced">✔ ${driver.experience} trips on route</span>`;
+    } else if (driver.experience > 0) {
+        badges += `<span class="badge-recommend" style="background:#f0f0f0;color:#555;">${driver.experience} trips on route</span>`;
+    }
+    const pills = (driver.schedules||[]).map(schedulePillHtml).join('');
+    return `<div class="dropdown-option${isSel?' selected':''}${unavail?' unavailable':''}"
+        data-id="${driver.id}" data-label="${driver.name}">
+        <div class="opt-main-row">
+            <span class="opt-label">${driver.name}</span>
+            <span class="opt-badges">${badges}</span>
+        </div>
+        ${pills ? `<div class="schedule-pills">${pills}</div>` : ''}
+    </div>`;
+}
+
+function buildConductorOption(c, selId) {
+    const isSel   = String(c.id) === String(selId);
+    const unavail = c.status !== 'AVAILABLE';
+    let badges = `<span class="badge-status ${statusBadgeClass(c.status)}">${statusLabel(c.status)}</span>`;
+    if (c.recommended) badges += `<span class="badge-recommend badge-experienced">⭐ Best Match</span>`;
+    if (c.experienced) {
+        badges += `<span class="badge-recommend badge-experienced">✔ ${c.experience} trips on route</span>`;
+    } else if (c.experience > 0) {
+        badges += `<span class="badge-recommend" style="background:#f0f0f0;color:#555;">${c.experience} trips on route</span>`;
+    }
+    const pills = (c.schedules||[]).map(schedulePillHtml).join('');
+    return `<div class="dropdown-option${isSel?' selected':''}${unavail?' unavailable':''}"
+        data-id="${c.id}" data-label="${c.name}">
+        <div class="opt-main-row">
+            <span class="opt-label">${c.name}</span>
+            <span class="opt-badges">${badges}</span>
+        </div>
+        ${pills ? `<div class="schedule-pills">${pills}</div>` : ''}
+    </div>`;
+}
+
+// ── Render lists ──────────────────────────────────────────────────────────────
+function renderBusList(filter = '') {
+    if (!resourceData) return;
+    const fl = filter.toLowerCase();
+    const match = b => b.bus_code
+        ? (b.bus_code.toLowerCase().includes(fl) || (b.bus_number||'').toLowerCase().includes(fl))
+        : ((b.code||'').toLowerCase().includes(fl) || (b.number||'').toLowerCase().includes(fl));
+
+    const available   = resourceData.buses.filter(b => b.status === 'AVAILABLE' && match(b));
+    const unavailable = resourceData.buses.filter(b => b.status !== 'AVAILABLE' && match(b));
+
+    let html = '';
+    if (available.length) {
+        html += `<div class="dropdown-section-header">🟢 Available Buses</div>`;
+        html += available.map(b => buildBusOption(b, selectedBusId)).join('');
+    }
+    if (unavailable.length) {
+        html += `<div class="dropdown-section-header">🔴 Unavailable Buses</div>`;
+        html += unavailable.map(b => buildBusOption(b, selectedBusId)).join('');
+    }
+    if (!available.length && !unavailable.length) html = `<div class="dropdown-loading">No buses found.</div>`;
+
+    document.getElementById('bus-list').innerHTML = html;
+    attachListeners('bus-list', 'bus');
+
+    if (resourceData.min_fuel > 0) {
+        fuelReqBox.textContent = `⛽ This route requires at least ${resourceData.min_fuel} L of fuel (distance: ${resourceData.route_distance} km). Buses with sufficient fuel are recommended.`;
+        fuelReqBox.classList.add('show');
+    } else {
+        fuelReqBox.classList.remove('show');
+    }
+}
+
+function renderDriverList(filter = '') {
+    if (!resourceData) return;
+    const fl = filter.toLowerCase();
+    const match = d => (d.name||'').toLowerCase().includes(fl);
+
+    const recommended = resourceData.drivers.filter(d => d.recommended && match(d));
+    const available   = resourceData.drivers.filter(d => !d.recommended && d.status === 'AVAILABLE' && match(d));
+    const unavailable = resourceData.drivers.filter(d => d.status !== 'AVAILABLE' && match(d));
+
+    let html = `<div class="dropdown-option opt-none" data-id="" data-label="">— None / Not Assigned —</div>`;
+    if (recommended.length) {
+        html += `<div class="dropdown-section-header">⭐ Recommended — Route Experienced (10+ trips)</div>`;
+        html += recommended.map(d => buildDriverOption(d, selectedDriverId)).join('');
+    }
+    if (available.length) {
+        html += `<div class="dropdown-section-header">🟢 Available Drivers</div>`;
+        html += available.map(d => buildDriverOption(d, selectedDriverId)).join('');
+    }
+    if (unavailable.length) {
+        html += `<div class="dropdown-section-header">🔴 Unavailable Drivers</div>`;
+        html += unavailable.map(d => buildDriverOption(d, selectedDriverId)).join('');
     }
 
-    function unlockField(wrapper, lock) {
-        wrapper.classList.remove('field-locked');
-        lock.classList.remove('show');
+    document.getElementById('driver-list').innerHTML = html;
+    attachListeners('driver-list', 'driver');
+}
+
+function renderConductorList(filter = '') {
+    if (!resourceData) return;
+    const fl = filter.toLowerCase();
+    const match = c => (c.name||'').toLowerCase().includes(fl);
+
+    const recommended = resourceData.conductors.filter(c => c.recommended && match(c));
+    const available   = resourceData.conductors.filter(c => !c.recommended && c.status === 'AVAILABLE' && match(c));
+    const unavailable = resourceData.conductors.filter(c => c.status !== 'AVAILABLE' && match(c));
+
+    let html = `<div class="dropdown-option opt-none" data-id="" data-label="">— None / Not Assigned —</div>`;
+    if (recommended.length) {
+        html += `<div class="dropdown-section-header">⭐ Recommended — Route Experienced (10+ trips)</div>`;
+        html += recommended.map(c => buildConductorOption(c, selectedConductorId)).join('');
+    }
+    if (available.length) {
+        html += `<div class="dropdown-section-header">🟢 Available Conductors</div>`;
+        html += available.map(c => buildConductorOption(c, selectedConductorId)).join('');
+    }
+    if (unavailable.length) {
+        html += `<div class="dropdown-section-header">🔴 Unavailable Conductors</div>`;
+        html += unavailable.map(c => buildConductorOption(c, selectedConductorId)).join('');
     }
 
-    function clearAutofill() {
-        unlockField(busWrapper, busLock);
-        unlockField(driverWrapper, driverLock);
-        unlockField(conductorWrapper, conductorLock);
-        notice.classList.remove('show');
+    document.getElementById('conductor-list').innerHTML = html;
+    attachListeners('conductor-list', 'conductor');
+}
+
+// ── Option click handling ─────────────────────────────────────────────────────
+function attachListeners(listId, type) {
+    document.getElementById(listId).querySelectorAll('.dropdown-option:not(.unavailable)').forEach(opt => {
+        opt.addEventListener('click', () => {
+            const id    = opt.dataset.id || '';
+            const label = opt.dataset.label || '';
+            selectOption(type, id, label);
+            closeDropdown(type);
+        });
+    });
+}
+
+function selectOption(type, id, label) {
+    const displayLabel = label || '— None —';
+    const isNone = !id;
+
+    if (type === 'bus') {
+        selectedBusId = id;
+        busRealSelect.innerHTML = `<option value="${id}" selected>${displayLabel}</option>`;
+        const t = document.getElementById('bus-trigger-text');
+        t.textContent = isNone ? 'Select a bus…' : displayLabel;
+        t.classList.toggle('trigger-placeholder', isNone);
+        renderBusList(document.getElementById('bus-search').value);
+    } else if (type === 'driver') {
+        selectedDriverId = id;
+        driverRealSelect.innerHTML = `<option value="${id}" selected>${displayLabel}</option>`;
+        const t = document.getElementById('driver-trigger-text');
+        t.textContent = isNone ? 'Select a driver…' : displayLabel;
+        t.classList.toggle('trigger-placeholder', isNone);
+        renderDriverList(document.getElementById('driver-search').value);
+    } else if (type === 'conductor') {
+        selectedConductorId = id;
+        conductorRealSelect.innerHTML = `<option value="${id}" selected>${displayLabel}</option>`;
+        const t = document.getElementById('conductor-trigger-text');
+        t.textContent = isNone ? 'Select a conductor…' : displayLabel;
+        t.classList.toggle('trigger-placeholder', isNone);
+        renderConductorList(document.getElementById('conductor-search').value);
     }
+}
 
-    async function checkAndAutofill() {
-        const timetableId = timetableSelect.value;
-        const date = dateInput.value;
+// ── Open / close dropdowns ────────────────────────────────────────────────────
+function openDropdown(type) {
+    closeAllDropdowns();
+    document.getElementById(`${type}-panel`).classList.add('open');
+    document.getElementById(`${type}-trigger`).classList.add('open');
+    const si = document.getElementById(`${type}-search`);
+    if (si) { si.value = ''; si.focus(); }
+    if (type === 'bus')       renderBusList();
+    if (type === 'driver')    renderDriverList();
+    if (type === 'conductor') renderConductorList();
+}
 
-        if (!timetableId || !date) { clearAutofill(); return; }
+function closeDropdown(type) {
+    document.getElementById(`${type}-panel`).classList.remove('open');
+    document.getElementById(`${type}-trigger`).classList.remove('open');
+}
 
-        try {
-            const resp = await fetch(OUTBOUND_API_URL + '?timetable_id=' + encodeURIComponent(timetableId) + '&date=' + encodeURIComponent(date));
-            const data = await resp.json();
+function closeAllDropdowns() {
+    ['bus','driver','conductor'].forEach(closeDropdown);
+}
 
-            if (data.match) {
-                if (data.bus_id) {
-                    busSelect.value = data.bus_id;
-                    lockField(busWrapper, busLock);
-                }
-                if (data.driver_id) {
-                    driverSelect.value = data.driver_id;
-                    lockField(driverWrapper, driverLock);
-                }
-                if (data.conductor_id) {
-                    conductorSelect.value = data.conductor_id;
-                    lockField(conductorWrapper, conductorLock);
-                }
+document.addEventListener('click', e => {
+    ['bus','driver','conductor'].forEach(type => {
+        const w = document.getElementById(`${type}-custom-wrapper`);
+        if (w && !w.contains(e.target)) closeDropdown(type);
+    });
+});
 
-                noticeMsg.textContent =
-                    'Bus, driver, and conductor have been automatically loaded from the outbound trip (' +
-                    data.outbound_departure + ' \u2192 ' + data.outbound_arrival + '). ' +
-                    'They will be confirmed automatically when this schedule is saved.';
-                notice.classList.add('show');
-            } else {
-                clearAutofill();
+['bus','driver','conductor'].forEach(type => {
+    const trigger = document.getElementById(`${type}-trigger`);
+    trigger.addEventListener('click', () => {
+        document.getElementById(`${type}-panel`).classList.contains('open')
+            ? closeDropdown(type) : openDropdown(type);
+    });
+    trigger.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDropdown(type); }
+    });
+});
+
+document.getElementById('bus-search').addEventListener('input',       e => renderBusList(e.target.value));
+document.getElementById('driver-search').addEventListener('input',    e => renderDriverList(e.target.value));
+document.getElementById('conductor-search').addEventListener('input', e => renderConductorList(e.target.value));
+
+// ── Fetch resource data from server ──────────────────────────────────────────
+async function fetchResourceData() {
+    const timetableId = timetableSelect.value;
+    const date        = dateInput.value;
+
+    const loading = '<div class="dropdown-loading">Loading…</div>';
+    ['bus','driver','conductor'].forEach(t => {
+        document.getElementById(`${t}-list`).innerHTML = loading;
+    });
+
+    try {
+        const params = new URLSearchParams();
+        if (timetableId) params.set('timetable_id', timetableId);
+        if (date)         params.set('date', date);
+        const resp = await fetch(`${RESOURCE_DATA_URL}?${params}`);
+        resourceData = await resp.json();
+        renderBusList();
+        renderDriverList();
+        renderConductorList();
+    } catch {
+        ['bus','driver','conductor'].forEach(t => {
+            document.getElementById(`${t}-list`).innerHTML = '<div class="dropdown-loading">Error loading data.</div>';
+        });
+    }
+}
+
+// ── Lock / unlock helpers ─────────────────────────────────────────────────────
+function lockField(wrapper, lock) {
+    wrapper.classList.add('field-locked');
+    lock.classList.add('show');
+}
+function unlockField(wrapper, lock) {
+    wrapper.classList.remove('field-locked');
+    lock.classList.remove('show');
+}
+function clearAutofill() {
+    unlockField(busWrapper, busLock);
+    unlockField(driverWrapper, driverLock);
+    unlockField(conductorWrapper, conductorLock);
+    notice.classList.remove('show');
+}
+
+// ── Outbound autofill check ───────────────────────────────────────────────────
+async function checkAndAutofill() {
+    const timetableId = timetableSelect.value;
+    const date        = dateInput.value;
+    if (!timetableId || !date) { clearAutofill(); return; }
+
+    try {
+        const resp = await fetch(
+            `${OUTBOUND_API_URL}?timetable_id=${encodeURIComponent(timetableId)}&date=${encodeURIComponent(date)}`
+        );
+        const data = await resp.json();
+        if (data.match) {
+            if (data.bus_id) {
+                selectOption('bus', String(data.bus_id), data.bus_label || '');
+                lockField(busWrapper, busLock);
             }
-        } catch (e) {
+            if (data.driver_id) {
+                selectOption('driver', String(data.driver_id), data.driver_label || '');
+                lockField(driverWrapper, driverLock);
+            }
+            if (data.conductor_id) {
+                selectOption('conductor', String(data.conductor_id), data.conductor_label || '');
+                lockField(conductorWrapper, conductorLock);
+            }
+            noticeMsg.textContent =
+                'Bus, driver, and conductor have been automatically loaded from the outbound trip (' +
+                data.outbound_departure + ' → ' + data.outbound_arrival +
+                '). They will be confirmed automatically when this schedule is saved.';
+            notice.classList.add('show');
+        } else {
             clearAutofill();
         }
+    } catch {
+        clearAutofill();
     }
+}
 
-    timetableSelect.addEventListener('change', checkAndAutofill);
-    dateInput.addEventListener('change', checkAndAutofill);
+// ── Main handler ──────────────────────────────────────────────────────────────
+async function onTimetableDateChange() {
+    await fetchResourceData();
+    await checkAndAutofill();
+}
+
+timetableSelect.addEventListener('change', onTimetableDateChange);
+dateInput.addEventListener('change', onTimetableDateChange);
 </script>
-
 </body>
 </html>

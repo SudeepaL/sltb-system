@@ -1,0 +1,240 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trip Revenue Detail</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
+    <style>
+        .detail-shell { max-width: 900px; margin: 28px auto; padding: 0 16px; }
+        .info-card {
+            background: #d6ecff;
+            border: 1px solid #a8cffa;
+            border-radius: 14px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+        }
+        .rev-total {
+            background: linear-gradient(135deg,#0d8f44,#086632);
+            color: #fff;
+            border-radius: 14px;
+            padding: 20px 24px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .rev-total .big { font-size: 2.2rem; font-weight: 900; }
+        .rev-total .label { font-size: .85rem; opacity: .85; text-transform: uppercase; letter-spacing: .05em; }
+
+        .live-box {
+            background: #fffbeb;
+            border: 2px solid #fbbf24;
+            border-radius: 12px;
+            padding: 14px 18px;
+            margin-bottom: 20px;
+            display: none; /* shown only when trip is ONGOING */
+        }
+        .live-box .live-pax  { font-size: 1.8rem; font-weight: 900; color: #b45309; }
+        .live-box .live-rev  { font-size: 1.8rem; font-weight: 900; color: #065f46; }
+        .live-dot { display:inline-block; width:10px; height:10px; background:#22c55e; border-radius:50%; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+
+        table { font-size: .88rem; }
+        .progress-thin { height: 6px; border-radius: 999px; }
+        .stop-progress { width: 100%; background: #e5e7eb; border-radius:999px; height:6px; overflow:hidden; }
+        .stop-bar      { height:100%; border-radius:999px; background: #1374cf; transition: width .4s; }
+    </style>
+</head>
+<body>
+<header class="top-area">
+    <img src="{% static 'core/logo.jpg' %}" alt="SLTB Logo" class="logo">
+    <nav class="module-nav">
+        <div class="module-buttons">
+            {% for item in module_buttons %}
+                <a href="{{ item.url }}" class="module-btn {% if item.is_active %}active{% endif %}">{{ item.label }}</a>
+            {% endfor %}
+        </div>
+    </nav>
+</header>
+
+<div class="detail-shell">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="panel-title mb-0"><strong>Trip Revenue Detail</strong></h1>
+        <a href="{% url 'revenue_dashboard' %}" class="manage-btn">← Back to Revenue</a>
+    </div>
+
+    <!-- Trip info -->
+    <div class="info-card">
+        <div class="row g-2">
+            <div class="col-sm-4"><strong>Bus:</strong> {{ trip.schedule.bus.bus_code }} ({{ trip.schedule.bus.bus_number }})</div>
+            <div class="col-sm-4"><strong>Type:</strong> {{ trip.schedule.bus.get_bus_type_display }}</div>
+            <div class="col-sm-4"><strong>Date:</strong> {{ trip.schedule.date }}</div>
+            <div class="col-sm-6"><strong>Route:</strong> {{ trip.schedule.timetable.route.route_number }} — {{ trip.schedule.timetable.route.start_location }} → {{ trip.schedule.timetable.route.end_location }}</div>
+            <div class="col-sm-3"><strong>Distance:</strong> {{ trip.schedule.timetable.route.distance|default:"—" }} km</div>
+            <div class="col-sm-3"><strong>Departure:</strong> {{ trip.schedule.timetable.departure_time }}</div>
+            <div class="col-sm-6"><strong>Driver:</strong> {{ trip.schedule.driver.driver_name|default:"—" }}</div>
+            <div class="col-sm-6"><strong>Conductor:</strong> {{ trip.schedule.conductor.conductor_name|default:"—" }}</div>
+            <div class="col-12">
+                <strong>Trip Status:</strong>
+                {% if trip.t_status == 'ONGOING' %}
+                    <span class="badge bg-warning text-dark">Ongoing <span class="live-dot"></span></span>
+                {% elif trip.t_status == 'COMPLETED' %}
+                    <span class="badge bg-success">Completed</span>
+                {% elif trip.t_status == 'DELAYED' %}
+                    <span class="badge bg-danger">Delayed</span>
+                {% else %}
+                    <span class="badge bg-secondary">{{ trip.get_t_status_display }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if trip.t_status == 'ONGOING' or trip.t_status == 'DELAYED' %}
+    <!-- Live counter (only shown while trip is ongoing) -->
+    <div class="live-box" id="liveBox">
+        <div class="d-flex justify-content-between mb-1">
+            <span style="font-weight:700; font-size:.9rem;">
+                <span class="live-dot"></span> LIVE PASSENGER &amp; REVENUE COUNTER
+            </span>
+            <small class="text-muted">Updates every 5 seconds</small>
+        </div>
+        <div class="row g-3 mt-1">
+            <div class="col-6 text-center">
+                <div class="label" style="font-size:.78rem; color:#6b7280; text-transform:uppercase;">Current Passengers</div>
+                <div class="live-pax" id="livePax">—</div>
+            </div>
+            <div class="col-6 text-center">
+                <div class="label" style="font-size:.78rem; color:#6b7280; text-transform:uppercase;">Revenue So Far (LKR)</div>
+                <div class="live-rev" id="liveRev">—</div>
+            </div>
+        </div>
+        <div class="mt-3">
+            <div class="d-flex justify-content-between" style="font-size:.8rem; color:#6b7280;">
+                <span>Progress along route</span>
+                <span id="stopsLabel">0 / 0 stops</span>
+            </div>
+            <div class="stop-progress mt-1">
+                <div class="stop-bar" id="stopBar" style="width:0%"></div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if trip_revenue %}
+    <!-- Total revenue card -->
+    <div class="rev-total">
+        <div>
+            <div class="label">Total Revenue</div>
+            <div class="big">LKR {{ trip_revenue.total_revenue|floatformat:2 }}</div>
+        </div>
+        <div class="text-end">
+            <div class="label">Total Passengers</div>
+            <div class="big">{{ trip_revenue.total_passengers }}</div>
+        </div>
+    </div>
+
+    <!-- Stop-by-stop boarding log -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header" style="background:#1374cf; color:#fff; font-weight:700; border-radius:12px 12px 0 0;">
+            Stop-by-Stop Boarding Log
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Stop</th>
+                        <th>Boarded</th>
+                        <th>Alighted</th>
+                        <th>Fare (LKR)</th>
+                        <th>Stop Revenue (LKR)</th>
+                        <th>Cumulative Pax</th>
+                        <th>Cumulative Rev (LKR)</th>
+                        <th>Load</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for log in boarding_logs %}
+                <tr>
+                    <td>{{ log.stop_order }}</td>
+                    <td><strong>{{ log.stop_name }}</strong></td>
+                    <td>
+                        {% if log.passengers_boarded > 0 %}
+                            <span class="badge bg-success">+{{ log.passengers_boarded }}</span>
+                        {% else %}
+                            <span class="text-muted">0</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if log.passengers_alighted > 0 %}
+                            <span class="badge bg-secondary">-{{ log.passengers_alighted }}</span>
+                        {% else %}
+                            <span class="text-muted">0</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ log.fare_per_passenger|floatformat:2 }}</td>
+                    <td>{{ log.stop_revenue|floatformat:2 }}</td>
+                    <td>{{ log.cumulative_passengers }}</td>
+                    <td><strong>{{ log.cumulative_revenue|floatformat:2 }}</strong></td>
+                    <td style="min-width:80px;">
+                        <div class="stop-progress">
+                            <div class="stop-bar" style="width:{% widthratio log.cumulative_passengers trip_revenue.total_passengers 100 %}%"></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+
+    <p class="text-muted mt-3" style="font-size:.8rem;">
+        ⚙️ Revenue data is <em>auto-simulated</em> – passengers are randomised per stop with peak-hour weighting (06:00–09:00 and 17:00–19:00).
+        {% if trip_revenue.is_simulated %}<span class="badge bg-secondary">Simulated</span>{% endif %}
+    </p>
+
+    {% else %}
+    <div class="alert alert-info">No revenue data available for this trip yet.</div>
+    {% endif %}
+</div>
+
+{% if trip.t_status == 'ONGOING' or trip.t_status == 'DELAYED' %}
+<script>
+(function () {
+    const tripId = {{ trip.id }};
+    const box = document.getElementById('liveBox');
+    const paxEl = document.getElementById('livePax');
+    const revEl = document.getElementById('liveRev');
+    const barEl = document.getElementById('stopBar');
+    const stopsLbl = document.getElementById('stopsLabel');
+
+    if (box) box.style.display = 'block';
+
+    function fetchLive() {
+        fetch(`/revenue/trip/${tripId}/status/`)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.ok) return;
+                if (paxEl) paxEl.textContent = data.passengers;
+                if (revEl) revEl.textContent = 'LKR ' + data.revenue.toLocaleString('en-LK', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                if (barEl && data.num_stops > 0) {
+                    const pct = Math.round((data.stops_passed / data.num_stops) * 100);
+                    barEl.style.width = pct + '%';
+                    if (stopsLbl) stopsLbl.textContent = data.stops_passed + ' / ' + data.num_stops + ' stops';
+                }
+            })
+            .catch(() => {});
+    }
+
+    fetchLive();
+    setInterval(fetchLive, 5000);
+})();
+</script>
+{% endif %}
+</body>
+</html>
