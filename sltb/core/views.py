@@ -1264,21 +1264,47 @@ def start_trip(request, schedule_id):
 
 # ── Fuel Dashboard ────────────────────────────────────────
 def fuel_dashboard(request):
+    import json
+    from collections import defaultdict
+
     tank = DepotFuelTank.get_tank()
     just_refilled = request.session.pop('just_refilled', False)
     fill_pct = tank.percentage()
     fuel_status = 'CRITICAL – LOW FUEL' if tank.is_low() else 'Normal'
 
-    # Bus refuel logs for log sheet + graph
-    refuel_logs = BusRefuelLog.objects.select_related('bus').order_by('-refueled_at')[:100]
+    # ── Refuel Log filters ──────────────────────────────────────
+    log_date_from  = request.GET.get('log_date_from', '').strip()
+    log_date_to    = request.GET.get('log_date_to', '').strip()
+    log_bus_code   = request.GET.get('log_bus_code', '').strip()
 
-    # Per-bus summary for graph
-    import json
-    from collections import defaultdict
+    # ── Refuel History (chart) filters ─────────────────────────
+    hist_date_from = request.GET.get('hist_date_from', '').strip()
+    hist_date_to   = request.GET.get('hist_date_to', '').strip()
+
+    # Bus refuel logs for log table
+    refuel_logs_qs = BusRefuelLog.objects.select_related('bus').order_by('-refueled_at')
+    if log_date_from:
+        refuel_logs_qs = refuel_logs_qs.filter(refueled_at__date__gte=log_date_from)
+    if log_date_to:
+        refuel_logs_qs = refuel_logs_qs.filter(refueled_at__date__lte=log_date_to)
+    if log_bus_code:
+        refuel_logs_qs = refuel_logs_qs.filter(bus__bus_code__iexact=log_bus_code)
+    refuel_logs = refuel_logs_qs[:100]
+
+    # Per-bus summary for chart (with optional date filter)
+    history_qs = BusRefuelLog.objects.select_related('bus').order_by('-refueled_at')
+    if hist_date_from:
+        history_qs = history_qs.filter(refueled_at__date__gte=hist_date_from)
+    if hist_date_to:
+        history_qs = history_qs.filter(refueled_at__date__lte=hist_date_to)
+
     bus_totals = defaultdict(float)
-    for log in refuel_logs:
+    for log in history_qs:
         bus_totals[log.bus.bus_code] += log.amount_liters
     bus_refuel_summary = [{'bus_code': k, 'total': round(v, 1)} for k, v in sorted(bus_totals.items())]
+
+    # All buses (for bus code dropdown)
+    all_buses = Bus.objects.all().order_by('bus_code')
 
     # All buses with low fuel (< 40L) for notifications
     low_fuel_buses = Bus.objects.filter(current_fuel_liters__lt=40).order_by('bus_code')
@@ -1292,8 +1318,116 @@ def fuel_dashboard(request):
         'refuel_logs': refuel_logs,
         'bus_refuel_summary_json': json.dumps(bus_refuel_summary),
         'low_fuel_buses': low_fuel_buses,
+        'all_buses': all_buses,
+        # log table filters
+        'log_date_from': log_date_from,
+        'log_date_to': log_date_to,
+        'log_bus_code': log_bus_code,
+        # history chart filters
+        'hist_date_from': hist_date_from,
+        'hist_date_to': hist_date_to,
     }
     return render(request, 'core/fuel_dashboard.html', context)
+
+
+def fuel_refuel_log_report_csv(request):
+    """Generate a CSV report of the Bus Refuel Log, respecting active filters."""
+    log_date_from = request.GET.get('log_date_from', '').strip()
+    log_date_to   = request.GET.get('log_date_to', '').strip()
+    log_bus_code  = request.GET.get('log_bus_code', '').strip()
+
+    qs = BusRefuelLog.objects.select_related('bus').order_by('-refueled_at')
+    if log_date_from:
+        qs = qs.filter(refueled_at__date__gte=log_date_from)
+    if log_date_to:
+        qs = qs.filter(refueled_at__date__lte=log_date_to)
+    if log_bus_code:
+        qs = qs.filter(bus__bus_code__iexact=log_bus_code)
+
+    filename_parts = ['bus_refuel_log']
+    if log_bus_code:
+        filename_parts.append(f'bus_{log_bus_code}')
+    if log_date_from:
+        filename_parts.append(f'from_{log_date_from}')
+    if log_date_to:
+        filename_parts.append(f'to_{log_date_to}')
+    filename = '_'.join(filename_parts) + '.csv'
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+    writer.writerow(['SLTB Bus Refuel Log Report'])
+    writer.writerow(['Generated on', timezone.now().strftime('%Y-%m-%d %H:%M')])
+    date_range = f"{log_date_from or 'All'} to {log_date_to or 'All'}"
+    writer.writerow(['Date Range', date_range])
+    if log_bus_code:
+        writer.writerow(['Bus Filter', log_bus_code])
+    writer.writerow([])
+    writer.writerow(['Bus Code', 'Amount (L)', 'Fuel Before (L)', 'Fuel After (L)', 'Depot Before (L)', 'Date & Time'])
+
+    total = 0
+    for log in qs:
+        writer.writerow([
+            log.bus.bus_code,
+            f'{log.amount_liters:.1f}',
+            f'{log.fuel_before:.1f}',
+            f'{log.fuel_after:.1f}',
+            f'{log.depot_level_before:.0f}',
+            log.refueled_at.strftime('%Y-%m-%d %H:%M'),
+        ])
+        total += log.amount_liters
+
+    writer.writerow([])
+    writer.writerow(['Total Fuel Dispensed (L)', f'{total:.1f}'])
+    return response
+
+
+def fuel_refuel_history_report_csv(request):
+    """Generate a CSV report of the Refuel History by Bus chart data, respecting active filters."""
+    from collections import defaultdict
+
+    hist_date_from = request.GET.get('hist_date_from', '').strip()
+    hist_date_to   = request.GET.get('hist_date_to', '').strip()
+
+    qs = BusRefuelLog.objects.select_related('bus').order_by('refueled_at')
+    if hist_date_from:
+        qs = qs.filter(refueled_at__date__gte=hist_date_from)
+    if hist_date_to:
+        qs = qs.filter(refueled_at__date__lte=hist_date_to)
+
+    filename_parts = ['refuel_history_by_bus']
+    if hist_date_from:
+        filename_parts.append(f'from_{hist_date_from}')
+    if hist_date_to:
+        filename_parts.append(f'to_{hist_date_to}')
+    filename = '_'.join(filename_parts) + '.csv'
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+    writer.writerow(['SLTB Refuel History by Bus Report'])
+    writer.writerow(['Generated on', timezone.now().strftime('%Y-%m-%d %H:%M')])
+    date_range = f"{hist_date_from or 'All'} to {hist_date_to or 'All'}"
+    writer.writerow(['Date Range', date_range])
+    writer.writerow([])
+    writer.writerow(['Bus Code', 'Total Fuel Refilled (L)', 'Number of Refuels'])
+
+    bus_totals = defaultdict(lambda: {'total': 0, 'count': 0})
+    for log in qs:
+        bus_totals[log.bus.bus_code]['total'] += log.amount_liters
+        bus_totals[log.bus.bus_code]['count'] += 1
+
+    grand_total = 0
+    for bus_code in sorted(bus_totals.keys()):
+        data = bus_totals[bus_code]
+        writer.writerow([bus_code, f"{data['total']:.1f}", data['count']])
+        grand_total += data['total']
+
+    writer.writerow([])
+    writer.writerow(['Grand Total (L)', f'{grand_total:.1f}'])
+    return response
 
 
 def fuel_refill(request):

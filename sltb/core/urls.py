@@ -36,6 +36,8 @@ urlpatterns = [
     path('fuel/', views.fuel_dashboard, name='fuel_dashboard'),
     path('fuel/refill/', views.fuel_refill, name='fuel_refill'),
     path('fuel/bus/<int:bus_id>/refuel/', views.bus_refuel, name='bus_refuel'),
+    path('fuel/report/refuel-log/', views.fuel_refuel_log_report_csv, name='fuel_refuel_log_report_csv'),
+    path('fuel/report/refuel-history/', views.fuel_refuel_history_report_csv, name='fuel_refuel_history_report_csv'),
 
     # ── Revenue module ────────────────────────────────────────────────────────
     path('revenue/', views.revenue_dashboard, name='revenue_dashboard'),
