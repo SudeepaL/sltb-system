@@ -137,6 +137,48 @@ body {
   display: block;
 }
 
+.bus-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1.2fr auto;
+  gap: 10px;
+  align-items: end;
+  padding: 6px 4px 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filter-item label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--blue-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.filter-item .form-control,
+.filter-item .form-select {
+  min-height: 38px;
+  font-size: 13px !important;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+}
+
+.filter-btn {
+  padding: 8px 14px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
 /* ════════════════════════════════════════════════════════
    UNIVERSAL TABLE SYSTEM — All tables match Bus Dashboard
    ════════════════════════════════════════════════════════ */
@@ -419,6 +461,26 @@ dd { margin: 0; font-weight: 700; color: var(--text); font-size: 15px; }
 /* ── Responsive ──────────────────────────────────────── */
 @media (max-width: 1100px) {
   .dashboard-grid { grid-template-columns: 1fr; }
+  .bus-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .route-item,
+  .filter-actions {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 680px) {
+  .bus-filters {
+    grid-template-columns: 1fr;
+  }
+  .route-item,
+  .filter-actions {
+    grid-column: span 1;
+  }
+  .filter-actions {
+    justify-content: flex-start;
+  }
 }
 
 /* ── Notification Bell ───────────────────────────────── */

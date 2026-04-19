@@ -23,6 +23,42 @@
 <main class="dashboard-grid">
     <section class="bus-table-panel shadow-sm">
         <h2 class="panel-title"><strong>Current Bus Activity</strong></h2>
+        <form method="get" class="bus-filters">
+            <input type="hidden" name="bus" value="{% if selected_bus %}{{ selected_bus.id }}{% endif %}">
+            <div class="filter-item">
+                <label for="capacityFilter">Seat Capacity</label>
+                <select id="capacityFilter" name="capacity_filter" class="form-select form-select-sm">
+                    <option value="">All capacities</option>
+                    <option value="30_40" {% if capacity_filter == '30_40' %}selected{% endif %}>30 to 40 seats</option>
+                    <option value="40_50" {% if capacity_filter == '40_50' %}selected{% endif %}>40 to 50 seats</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label for="busTypeFilter">Bus Type</label>
+                <select id="busTypeFilter" name="bus_type_filter" class="form-select form-select-sm">
+                    <option value="">All types</option>
+                    <option value="AC" {% if bus_type_filter == 'AC' %}selected{% endif %}>AC</option>
+                    <option value="NON_AC" {% if bus_type_filter == 'NON_AC' %}selected{% endif %}>Non-AC</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label for="statusFilter">Current Status</label>
+                <select id="statusFilter" name="status_filter" class="form-select form-select-sm">
+                    <option value="">All status</option>
+                    <option value="AVAILABLE" {% if status_filter == 'AVAILABLE' %}selected{% endif %}>Available</option>
+                    <option value="ON_ROUTE" {% if status_filter == 'ON_ROUTE' %}selected{% endif %}>On Route</option>
+                    <option value="MAINTENANCE" {% if status_filter == 'MAINTENANCE' %}selected{% endif %}>Maintenance</option>
+                </select>
+            </div>
+            <div class="filter-item route-item">
+                <label for="routeFilter">Current Route Number</label>
+                <input id="routeFilter" type="text" name="route_filter" value="{{ route_filter }}" class="form-control form-control-sm" placeholder="e.g. 138">
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="manage-btn filter-btn">Search</button>
+                <a href="{% url 'bus_dashboard' %}" class="delete-btn filter-btn">Clear</a>
+            </div>
+        </form>
         <table class="table table-hover align-middle mb-0">
             <thead>
                 <tr>
@@ -38,7 +74,7 @@
                 {% for row in bus_rows %}
                 <tr class="{% if selected_bus and selected_bus.id == row.bus.id %}active-row{% endif %}">
                     <td>
-                        <a href="?bus={{ row.bus.id }}" class="bus-code-link">{{ row.bus.bus_code }}</a>
+                       <a href="?bus={{ row.bus.id }}{% if filter_query %}&{{ filter_query }}{% endif %}" class="bus-code-link">{{ row.bus.bus_code }}</a> 
                     </td>
                     <td>{{ row.bus.get_status_display }}</td>
                     <td>{{ row.current_route }}</td>

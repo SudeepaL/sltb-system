@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 from datetime import datetime, timedelta
 from decimal import Decimal
+from urllib.parse import urlencode
 
 from .forms import BusForm, BusMaintenanceForm, ConductorForm, DriverForm, RouteForm, ScheduleForm, StopForm, TimeTableForm
 from .models import (
@@ -180,12 +181,14 @@ def _get_bus_trip_rows():
             )
 
         schedule_label = '-'
+        route_number = '-'
         driver_name = '-'
         conductor_name = '-'
 
         if current_trip:
             route = current_trip.schedule.timetable.route
             schedule_label = f'{route.start_location}-{route.end_location}'
+            route_number = route.route_number
             if current_trip.schedule.driver:
                 driver_name = current_trip.schedule.driver.driver_name
             if current_trip.schedule.conductor:
@@ -195,6 +198,7 @@ def _get_bus_trip_rows():
             {
                 'bus': bus,
                 'current_route': schedule_label,
+                'current_route_number': route_number,
                 'driver_name': driver_name,
                 'conductor_name': conductor_name,
             }
@@ -206,13 +210,43 @@ def _get_bus_trip_rows():
 def bus_dashboard(request):
     selected_bus_id = request.GET.get('bus')
     bus_rows = _get_bus_trip_rows()
+    capacity_filter = request.GET.get('capacity_filter', '')
+    bus_type_filter = request.GET.get('bus_type_filter', '')
+    status_filter = request.GET.get('status_filter', '')
+    route_filter = request.GET.get('route_filter', '').strip()
+
+    if capacity_filter == '30_40':
+        bus_rows = [row for row in bus_rows if 30 <= row['bus'].capacity <= 40]
+    elif capacity_filter == '40_50':
+        bus_rows = [row for row in bus_rows if 40 <= row['bus'].capacity <= 50]
+
+    if bus_type_filter in {'AC', 'NON_AC'}:
+        bus_rows = [row for row in bus_rows if row['bus'].bus_type == bus_type_filter]
+
+    valid_statuses = {choice[0] for choice in Bus.STATUS_CHOICES}
+    if status_filter in valid_statuses:
+        bus_rows = [row for row in bus_rows if row['bus'].status == status_filter]
+
+    if route_filter:
+        bus_rows = [
+            row for row in bus_rows
+            if row['current_route_number'] != '-' and route_filter.lower() in row['current_route_number'].lower()
+        ]
 
     selected_bus = bus_rows[0]['bus'] if bus_rows else None
     if selected_bus_id:
-        selected_bus = get_object_or_404(Bus, id=selected_bus_id)
+        selected_bus = next((row['bus'] for row in bus_rows if str(row['bus'].id) == selected_bus_id), None)
 
     on_route_count = Bus.objects.filter(status='ON_ROUTE').count()
     maintenance_count = Bus.objects.filter(status='MAINTENANCE').count()
+    filter_query = urlencode(
+        {
+            'capacity_filter': capacity_filter,
+            'bus_type_filter': bus_type_filter,
+            'status_filter': status_filter,
+            'route_filter': route_filter,
+        }
+    )
 
     context = {
         'bus_rows': bus_rows,
@@ -222,6 +256,11 @@ def bus_dashboard(request):
         'on_route_buses': on_route_count,
         'maintenance_buses': maintenance_count,
         'module_buttons': _module_buttons('buses'),
+        'capacity_filter': capacity_filter,
+        'bus_type_filter': bus_type_filter,
+        'status_filter': status_filter,
+        'route_filter': route_filter,
+        'filter_query': filter_query,
     }
 
     return render(request, 'core/bus_dashboard.html', context)
