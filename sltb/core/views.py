@@ -1,5 +1,6 @@
+import csv
 from django.db import models
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -917,6 +918,91 @@ def maintenance_dashboard(request):
         'module_buttons': _module_buttons('maintenance'),
     }
     return render(request, 'core/maintenance_dashboard.html', context)
+
+
+def maintenance_report_csv(request):
+    """Generate a CSV report of completed maintenance records filtered by the same date range."""
+    completed_records = BusMaintenance.objects.select_related('bus').filter(
+        maintenance_status='COMPLETED'
+    ).order_by('service_date')
+
+    bus_code = request.GET.get('bus_code', '')
+    filter_date_from = request.GET.get('filter_date_from', '')
+    filter_date_to = request.GET.get('filter_date_to', '')
+
+    if bus_code:
+        completed_records = completed_records.filter(bus__bus_code=bus_code)
+    if filter_date_from:
+        completed_records = completed_records.filter(service_date__gte=filter_date_from)
+    if filter_date_to:
+        completed_records = completed_records.filter(service_date__lte=filter_date_to)
+
+    # Build a descriptive filename
+    filename_parts = ['maintenance_report']
+    if filter_date_from:
+        filename_parts.append(f'from_{filter_date_from}')
+    if filter_date_to:
+        filename_parts.append(f'to_{filter_date_to}')
+    filename = '_'.join(filename_parts) + '.csv'
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+
+    # Report header block
+    writer.writerow(['SLTB Maintenance Report'])
+    writer.writerow(['Generated on', timezone.now().strftime('%Y-%m-%d %H:%M')])
+    if filter_date_from or filter_date_to:
+        date_range = f"{filter_date_from or 'All'} to {filter_date_to or 'All'}"
+        writer.writerow(['Date Range', date_range])
+    else:
+        writer.writerow(['Date Range', 'All Records'])
+    if bus_code:
+        writer.writerow(['Bus Filter', bus_code])
+    writer.writerow([])  # blank line
+
+    # Column headers
+    writer.writerow([
+        'Bus Code',
+        'Service Date',
+        'Est. Completion Date/Time',
+        'Actual Completion Date/Time',
+        'Est. Cost (LKR)',
+        'Actual Cost (LKR)',
+    ])
+
+    total_actual_cost = Decimal('0.00')
+
+    for record in completed_records:
+        est_duration = (
+            record.estimated_maintenance_duration.strftime('%Y-%m-%d %H:%M')
+            if record.estimated_maintenance_duration else ''
+        )
+        actual_completion = (
+            record.actual_completion_date.strftime('%Y-%m-%d %H:%M')
+            if record.actual_completion_date else ''
+        )
+        est_cost = record.estimated_cost if record.estimated_cost is not None else ''
+        actual_cost = record.actual_cost if record.actual_cost is not None else ''
+
+        if record.actual_cost is not None:
+            total_actual_cost += record.actual_cost
+
+        writer.writerow([
+            record.bus.bus_code,
+            record.service_date.strftime('%Y-%m-%d'),
+            est_duration,
+            actual_completion,
+            est_cost,
+            actual_cost,
+        ])
+
+    # Total row
+    writer.writerow([])
+    writer.writerow(['', '', '', '', 'Total Actual Cost (LKR)', total_actual_cost])
+
+    return response
 
 
 def complete_maintenance(request, record_id):
