@@ -4,7 +4,7 @@ from .models import Bus, Driver, Conductor, Route, Stop, RouteStop, Schedule, Ti
 
 @admin.register(Bus)
 class BusAdmin(admin.ModelAdmin):
-    list_display = ('bus_code', 'bus_number', 'status', 'current_fuel_liters', 'fuel_efficiency_km_per_liter')
+    list_display = ('bus_code', 'bus_number', 'status', 'fuel_capacity_liters', 'current_fuel_liters', 'fuel_efficiency_km_per_liter')
     search_fields = ('bus_code', 'bus_number')
 
 @admin.register(Driver)

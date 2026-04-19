@@ -1047,8 +1047,8 @@ def current_schedules(request, bus_id):
     tank = DepotFuelTank.get_tank()
     refuel_error = request.session.pop('refuel_error', None)
     refuel_success = request.session.pop('refuel_success', None)
-    max_bus_capacity = 200.0
-    bus_fuel_pct = min(100, (bus.current_fuel_liters / max_bus_capacity) * 100)
+    max_bus_capacity = float(bus.fuel_capacity_liters)
+    bus_fuel_pct = min(100, (bus.current_fuel_liters / max(max_bus_capacity, 1)) * 100)
 
     context = {
         'bus': bus,
@@ -1219,7 +1219,7 @@ def bus_refuel(request, bus_id):
         elif amount > tank.current_level_liters:
             error = f'Insufficient depot fuel. Only {tank.current_level_liters:.0f} L available.'
         else:
-            max_bus_capacity = 200.0  # typical bus tank capacity
+            max_bus_capacity = float(bus.fuel_capacity_liters)
             space_available = max_bus_capacity - bus.current_fuel_liters
             if amount > space_available:
                 error = f'Bus tank can only accept {space_available:.0f} L more (max capacity {max_bus_capacity:.0f} L).'

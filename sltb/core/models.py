@@ -92,8 +92,9 @@ class Bus(models.Model):
     model = models.CharField(max_length=50, blank=True, null=True)
     capacity = models.PositiveBigIntegerField()
     bus_type = models.CharField(max_length=10, choices=BUS_TYPE_CHOICES)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='AVAILABLE')
     depot = models.CharField(max_length=50)
+    fuel_capacity_liters = models.PositiveIntegerField(default=200, help_text='Maximum fuel tank capacity in liters')
     current_fuel_liters = models.FloatField(default=0)
     fuel_efficiency_km_per_liter = models.FloatField(default=4.0)
     mileage = models.PositiveIntegerField(default=0, help_text='Current mileage of the bus in km')
@@ -115,6 +116,11 @@ class Bus(models.Model):
     def add_fuel(self, filled_liters):
         if filled_liters <= 0:
             raise ValueError("Fuel amount must be greater than zero.")
+        max_capacity = float(self.fuel_capacity_liters)
+        if self.current_fuel_liters + filled_liters > max_capacity:
+            raise ValueError(
+                f"Bus tank can only accept {max(0, max_capacity - self.current_fuel_liters):.2f}L more."
+            )
         self.current_fuel_liters += filled_liters
         self.save(update_fields=['current_fuel_liters'])
         FuelTransaction.objects.create(

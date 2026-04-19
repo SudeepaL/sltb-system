@@ -13,6 +13,7 @@ class BusForm(forms.ModelForm):
             'bus_type',
             'status',
             'depot',
+            'fuel_capacity_liters',
             'current_fuel_liters',
             'fuel_efficiency_km_per_liter',
             'mileage',

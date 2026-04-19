@@ -72,7 +72,7 @@
                     <dt>Bus Code:</dt><dd>{{ selected_bus.bus_code }}</dd>
                     <dt>Bus Model:</dt><dd>{{ selected_bus.model|default:'-' }}</dd>
                     <dt>Type:</dt><dd>{{ selected_bus.get_bus_type_display }}</dd>
-                    <dt>Fuel Capacity:</dt><dd>-</dd>
+                    <dt>Fuel Capacity:</dt><dd>{{ selected_bus.fuel_capacity_liters }} L</dd>
                     <dt>Current Fuel:</dt><dd>{{ selected_bus.current_fuel_liters }} L</dd>
                     <dt>Seat Capacity:</dt><dd>{{ selected_bus.capacity }}</dd>
                     <dt>Mileage:</dt><dd>{{ selected_bus.mileage }} km</dd>
