@@ -469,7 +469,12 @@ class DepotFuelTank(models.Model):
 
 #Bus refuel log (tracks when a bus is refuelled from depot)
 class BusRefuelLog(models.Model):
-    bus = models.ForeignKey('Bus', on_delete=models.CASCADE, related_name='refuel_logs')
+    bus = models.ForeignKey('Bus', on_delete=models.CASCADE, related_name='refuel_logs', null=True, blank=True)
+    # For buses from other depots that are not in this depot's database
+    external_bus_code = models.CharField(max_length=20, blank=True, null=True,
+        help_text="Bus code for buses from other depots (not in this depot's database)")
+    is_external_bus = models.BooleanField(default=False,
+        help_text="True if this refuel was for a bus from another depot")
     amount_liters = models.FloatField()
     fuel_before = models.FloatField()
     fuel_after = models.FloatField()
@@ -480,8 +485,16 @@ class BusRefuelLog(models.Model):
     class Meta:
         ordering = ['-refueled_at']
 
+    @property
+    def effective_bus_code(self):
+        """Returns the bus code regardless of whether it's an internal or external bus."""
+        if self.is_external_bus:
+            return self.external_bus_code or '—'
+        return self.bus.bus_code if self.bus else '—'
+
     def __str__(self):
-        return f"{self.bus.bus_code} refueled {self.amount_liters:.0f}L on {self.refueled_at:%Y-%m-%d %H:%M}"
+        code = self.effective_bus_code
+        return f"{code} refueled {self.amount_liters:.0f}L on {self.refueled_at:%Y-%m-%d %H:%M}"
 
 
 #Bus maintenance module

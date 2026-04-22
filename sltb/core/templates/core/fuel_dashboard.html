@@ -8,10 +8,103 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        .add-refuel-btn-wrap { display:flex; justify-content:flex-end; margin-bottom:14px; }
+        .add-refuel-btn {
+            background: linear-gradient(135deg, #0a4db2, #1a6fe0);
+            color: #fff; border: none; border-radius: 8px;
+            padding: 10px 22px; font-size: 0.93rem; font-weight: 600;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+            box-shadow: 0 2px 8px rgba(10,77,178,0.18);
+            transition: background 0.2s, transform 0.15s;
+        }
+        .add-refuel-btn:hover { background: linear-gradient(135deg, #083d99, #1560c5); transform: translateY(-1px); }
+
+        #busRefuelFormWrap {
+            display: none; background: #f4f8ff; border: 1.5px solid #c2d6f5;
+            border-radius: 12px; padding: 22px 26px 18px; margin-bottom: 22px;
+            animation: slideDown 0.25s ease;
+        }
+        @keyframes slideDown { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
+        #busRefuelFormWrap h3 { font-size:1.05rem; font-weight:700; color:#0a4db2; margin-bottom:18px; }
+
+        .refuel-form-grid {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 14px 22px; margin-bottom: 16px;
+        }
+        @media (max-width:700px) { .refuel-form-grid { grid-template-columns:1fr; } }
+        .refuel-form-grid label { font-size:0.82rem; font-weight:600; color:#3a5a8a; display:block; margin-bottom:4px; }
+        .refuel-form-grid input, .refuel-form-grid select {
+            width:100%; border:1.5px solid #c2d6f5; border-radius:7px;
+            padding:7px 11px; font-size:0.92rem; background:#fff; color:#1a2a4a; transition:border-color 0.18s;
+        }
+        .refuel-form-grid input:focus, .refuel-form-grid select:focus { border-color:#0a4db2; outline:none; }
+
+        .bus-type-toggle { display:flex; gap:10px; margin-bottom:16px; }
+        .bus-type-toggle button {
+            flex:1; padding:8px 14px; border-radius:7px; border:1.5px solid #c2d6f5;
+            background:#fff; font-size:0.88rem; font-weight:600; cursor:pointer; color:#5a7a9a; transition:all 0.18s;
+        }
+        .bus-type-toggle button.active { background:#0a4db2; color:#fff; border-color:#0a4db2; }
+
+        .inline-tank-wrap {
+            display:flex; align-items:center; gap:20px; background:#eef4ff;
+            border-radius:10px; padding:14px 18px; margin-bottom:14px; min-height:90px;
+        }
+        .inline-tank-svg-container { position:relative; flex-shrink:0; }
+        .inline-tank-bubble-layer {
+            position:absolute; left:11px; top:18px; width:78px; height:116px;
+            overflow:hidden; border-radius:8px; pointer-events:none; z-index:2;
+        }
+        .inline-tank-info { flex:1; }
+        .inline-tank-info .bus-label { font-size:1rem; font-weight:700; color:#0a4db2; }
+        .inline-tank-info .fuel-row { display:flex; gap:16px; flex-wrap:wrap; margin-top:6px; }
+        .inline-tank-info .fstat {
+            background:#fff; border-radius:7px; padding:6px 13px; text-align:center;
+            min-width:80px; border:1px solid #d0e2ff;
+        }
+        .inline-tank-info .fstat .val { font-size:1.1rem; font-weight:700; color:#0a4db2; }
+        .inline-tank-info .fstat .val.warn { color:#e03a3a; }
+        .inline-tank-info .fstat .lbl { font-size:0.72rem; color:#7a9ab5; margin-top:2px; }
+        .inline-tank-info .low-warn { margin-top:7px; color:#e03a3a; font-size:0.82rem; font-weight:600; }
+
+        .refuel-submit-row { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+        .refuel-submit-btn {
+            background: linear-gradient(135deg, #0a4db2, #1a6fe0); color:#fff;
+            border:none; border-radius:8px; padding:10px 28px; font-size:0.95rem; font-weight:700;
+            cursor:pointer; transition:background 0.2s;
+        }
+        .refuel-submit-btn:hover { background: linear-gradient(135deg, #083d99, #1560c5); }
+        .refuel-submit-btn:disabled { opacity:0.55; cursor:not-allowed; }
+        .cancel-refuel-btn {
+            background:#e8ecf2; color:#4a5a7a; border:none; border-radius:8px;
+            padding:10px 20px; font-size:0.92rem; font-weight:600; cursor:pointer;
+        }
+        .cancel-refuel-btn:hover { background:#d8dfe8; }
+        #refuelFormMsg { font-size:0.88rem; font-weight:600; display:none; }
+        #refuelFormMsg.success { color:#0a8040; }
+        #refuelFormMsg.error   { color:#e03a3a; }
+
+        .chart-depot-filter { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+        .cdf-btn {
+            padding:5px 16px; border-radius:20px; border:1.5px solid #c2d6f5;
+            background:#fff; font-size:0.82rem; font-weight:600; cursor:pointer; color:#5a7a9a; transition:all 0.17s;
+        }
+        .cdf-btn.active { background:#0a4db2; color:#fff; border-color:#0a4db2; }
+        .cdf-btn.ext.active { background:#9b4db2; border-color:#9b4db2; }
+
+        .badge-bus-ext {
+            background:#f0e0ff; color:#7a1fb2; font-size:0.75rem;
+            padding:2px 8px; border-radius:10px; font-weight:700; display:inline-block;
+        }
+        .ext-badge-sm {
+            font-size:0.68rem; background:#f0e0ff; color:#7a1fb2;
+            border-radius:6px; padding:1px 5px; font-weight:600; vertical-align:middle; margin-left:3px;
+        }
+    </style>
 </head>
 <body>
 
-<!-- ── Header ──────────────────────────────────────────── -->
 <header class="top-area">
     <img src="{% static 'core/logo.jpg' %}" alt="SLTB Logo" class="logo">
     <nav class="module-nav">
@@ -21,12 +114,10 @@
             {% endfor %}
         </div>
     </nav>
-    <!-- Notification Bell -->
     <div class="notification-area">
         <button class="bell-btn" id="bellBtn" title="Notifications" onclick="toggleNotifPanel()">
             <svg class="bell-icon" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M18 3C18 3 10 7 10 18v7l-3 3v1h22v-1l-3-3v-7C26 7 18 3 18 3z"
-                      fill="white" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+                <path d="M18 3C18 3 10 7 10 18v7l-3 3v1h22v-1l-3-3v-7C26 7 18 3 18 3z" fill="white" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
                 <path d="M15 31a3 3 0 0 0 6 0" fill="white"/>
                 <circle cx="27" cy="9" r="5" fill="#ffdd00" id="bellDot" style="display:none;"/>
             </svg>
@@ -44,7 +135,6 @@
     </div>
 </header>
 
-<!-- ── Main Content ─────────────────────────────────────── -->
 <main>
     <div class="fuel-page">
         <!-- Left: Depot Tank -->
@@ -68,56 +158,33 @@
                                 <stop offset="0%" stop-color="#ff7675"/>
                                 <stop offset="100%" stop-color="#d63031"/>
                             </linearGradient>
-                            <clipPath id="tankClip">
-                                <rect x="30" y="60" width="200" height="280" rx="22" ry="22"/>
-                            </clipPath>
+                            <clipPath id="tankClip"><rect x="30" y="60" width="200" height="280" rx="22" ry="22"/></clipPath>
                             <filter id="shine">
                                 <feGaussianBlur stdDeviation="3" result="blur"/>
                                 <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
                             </filter>
                         </defs>
-                        <rect x="30" y="60" width="200" height="280" rx="22" ry="22"
-                              fill="url(#tankBodyGrad)" stroke="#7a9cbf" stroke-width="3"/>
-                        <rect id="fuelRect" x="31" y="200" width="198" height="139"
-                              clip-path="url(#tankClip)" fill="url(#fuelGrad)" rx="0"/>
+                        <rect x="30" y="60" width="200" height="280" rx="22" ry="22" fill="url(#tankBodyGrad)" stroke="#7a9cbf" stroke-width="3"/>
+                        <rect id="fuelRect" x="31" y="200" width="198" height="139" clip-path="url(#tankClip)" fill="url(#fuelGrad)" rx="0"/>
                         <g clip-path="url(#tankClip)">
-                            <path id="wavePath"
-                                  d="M31,200 Q80,192 130,200 Q180,208 228,200 L228,200 L31,200 Z"
-                                  fill="rgba(255,255,255,0.3)" id="waveLayer"/>
+                            <path id="wavePath" d="M31,200 Q80,192 130,200 Q180,208 228,200 L228,200 L31,200 Z" fill="rgba(255,255,255,0.3)"/>
                         </g>
-                        <rect x="45" y="75" width="18" height="240" rx="9"
-                              fill="rgba(255,255,255,0.22)" filter="url(#shine)"/>
-                        <g stroke="#5a7a9a" stroke-width="1.5" font-size="10" fill="#4a6a8a"
-                           font-family="Arial,sans-serif">
-                            <line x1="230" y1="82" x2="242" y2="82"/>
-                            <text x="245" y="86">100%</text>
-                            <line x1="230" y1="152" x2="242" y2="152"/>
-                            <text x="245" y="156">75%</text>
-                            <line x1="230" y1="200" x2="242" y2="200"/>
-                            <text x="245" y="204">50%</text>
-                            <line x1="230" y1="270" x2="242" y2="270"/>
-                            <text x="245" y="274">25%</text>
-                            <line x1="230" y1="338" x2="242" y2="338"/>
-                            <text x="245" y="342">0%</text>
-                            <line x1="31" y1="310" x2="229" y2="310" stroke="#e03a3a"
-                                  stroke-width="1.2" stroke-dasharray="5,4" opacity="0.7"/>
+                        <rect x="45" y="75" width="18" height="240" rx="9" fill="rgba(255,255,255,0.22)" filter="url(#shine)"/>
+                        <g stroke="#5a7a9a" stroke-width="1.5" font-size="10" fill="#4a6a8a" font-family="Arial,sans-serif">
+                            <line x1="230" y1="82" x2="242" y2="82"/><text x="245" y="86">100%</text>
+                            <line x1="230" y1="152" x2="242" y2="152"/><text x="245" y="156">75%</text>
+                            <line x1="230" y1="200" x2="242" y2="200"/><text x="245" y="204">50%</text>
+                            <line x1="230" y1="270" x2="242" y2="270"/><text x="245" y="274">25%</text>
+                            <line x1="230" y1="338" x2="242" y2="338"/><text x="245" y="342">0%</text>
+                            <line x1="31" y1="310" x2="229" y2="310" stroke="#e03a3a" stroke-width="1.2" stroke-dasharray="5,4" opacity="0.7"/>
                         </g>
-                        <text x="38" y="307" font-size="9" fill="#e03a3a"
-                              font-family="Arial,sans-serif" font-weight="bold">LOW — 3000L</text>
-                        <rect x="108" y="38" width="44" height="26" rx="8"
-                              fill="#8facc8" stroke="#7a9cbf" stroke-width="2"/>
-                        <rect x="118" y="28" width="24" height="14" rx="5"
-                              fill="#7a9cbf" stroke="#6a8caf" stroke-width="1.5"/>
-                        <rect x="108" y="338" width="44" height="14" rx="5"
-                              fill="#7a9cbf" stroke="#6a8caf" stroke-width="1.5"/>
-                        <rect x="120" y="350" width="20" height="22" rx="4"
-                              fill="#7a9cbf" stroke="#6a8caf" stroke-width="1.5"/>
-                        <text id="pctLabel" x="130" y="210" text-anchor="middle"
-                              font-size="32" font-weight="bold" fill="white"
-                              font-family="Arial,sans-serif"
-                              style="text-shadow:0 1px 4px rgba(0,0,0,0.4);filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">
-                            50%
-                        </text>
+                        <text x="38" y="307" font-size="9" fill="#e03a3a" font-family="Arial,sans-serif" font-weight="bold">LOW — 3000L</text>
+                        <rect x="108" y="38" width="44" height="26" rx="8" fill="#8facc8" stroke="#7a9cbf" stroke-width="2"/>
+                        <rect x="118" y="28" width="24" height="14" rx="5" fill="#7a9cbf" stroke="#6a8caf" stroke-width="1.5"/>
+                        <rect x="108" y="338" width="44" height="14" rx="5" fill="#7a9cbf" stroke="#6a8caf" stroke-width="1.5"/>
+                        <rect x="120" y="350" width="20" height="22" rx="4" fill="#7a9cbf" stroke="#6a8caf" stroke-width="1.5"/>
+                        <text id="pctLabel" x="130" y="210" text-anchor="middle" font-size="32" font-weight="bold" fill="white"
+                              font-family="Arial,sans-serif" style="text-shadow:0 1px 4px rgba(0,0,0,0.4);filter:drop-shadow(0 2px 4px rgba(0,0,0,0.3))">50%</text>
                     </svg>
                     <div id="bubbleContainer" style="position:absolute;left:31px;top:60px;width:198px;height:280px;overflow:hidden;border-radius:18px;pointer-events:none;z-index:2;"></div>
                 </div>
@@ -135,9 +202,7 @@
                         <div class="lbl">Fill Percentage</div>
                     </div>
                 </div>
-                <div class="low-alert" id="lowAlert">
-                    ⚠️ CRITICAL: Fuel below 3,000 L — Please refill immediately!
-                </div>
+                <div class="low-alert" id="lowAlert">⚠️ CRITICAL: Fuel below 3,000 L — Please refill immediately!</div>
             </div>
         </div>
 
@@ -148,14 +213,11 @@
             <form method="post" action="{% url 'fuel_refill' %}" id="refillForm">
                 {% csrf_token %}
                 <label for="refill_amount">Refill Amount (Liters)</label>
-                <input type="number" id="refill_amount" name="refill_amount"
-                       min="1" max="30000" step="1" placeholder="Enter litres to add…" required>
+                <input type="number" id="refill_amount" name="refill_amount" min="1" max="30000" step="1" placeholder="Enter litres to add…" required>
                 <label for="last_refill_date">Last Refilled Date</label>
-                <input type="date" id="last_refill_date" name="last_refill_date"
-                       value="{{ tank.last_refill_date|date:'Y-m-d' }}">
+                <input type="date" id="last_refill_date" name="last_refill_date" value="{{ tank.last_refill_date|date:'Y-m-d' }}">
                 <label for="next_refill_date">Next Refill Date</label>
-                <input type="date" id="next_refill_date" name="next_refill_date"
-                       value="{{ tank.next_refill_date|date:'Y-m-d' }}">
+                <input type="date" id="next_refill_date" name="next_refill_date" value="{{ tank.next_refill_date|date:'Y-m-d' }}">
                 <button type="submit" class="refill-btn">⛽ Refill Tank</button>
             </form>
             <div class="info-cards">
@@ -175,7 +237,6 @@
         </div>
     </div>
 
-    <!-- ── Low Bus Fuel Alerts ────────────────────────── -->
     {% if low_fuel_buses %}
     <div class="low-buses-panel">
         <div class="low-buses-inner">
@@ -185,9 +246,7 @@
                 <div class="low-bus-card">
                     <div class="lbc-code">{{ b.bus_code }}</div>
                     <div class="lbc-fuel">{{ b.current_fuel_liters|floatformat:1 }} L remaining</div>
-                    <div class="lbc-bar">
-                        <div class="lbc-fill" style="width:{{ b.current_fuel_liters|floatformat:0 }}%;"></div>
-                    </div>
+                    <div class="lbc-bar"><div class="lbc-fill" style="width:{{ b.current_fuel_liters|floatformat:0 }};"></div></div>
                 </div>
                 {% endfor %}
             </div>
@@ -195,27 +254,173 @@
     </div>
     {% endif %}
 
-    <!-- ── Log & Chart ────────────────────────────────── -->
     <div class="log-section">
         <!-- Refuel Log Table -->
         <div class="log-panel">
             <h2>📋 Bus Refuel Log</h2>
+
+            <!-- ADD BUS REFUEL RECORD BUTTON -->
+            <div class="add-refuel-btn-wrap">
+                <button class="add-refuel-btn" id="toggleRefuelFormBtn" onclick="toggleRefuelForm()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+                    </svg>
+                    Add Bus Refuel Record
+                </button>
+            </div>
+
+            <!-- COLLAPSIBLE REFUEL FORM -->
+            <div id="busRefuelFormWrap">
+                <h3>⛽ Refuel a Bus from Depot Tank</h3>
+
+                <div class="bus-type-toggle">
+                    <button type="button" id="btnDepotBus" class="active" onclick="setBusType('depot')">
+                        🚌 This Depot's Bus (KS)
+                    </button>
+                    <button type="button" id="btnExtBus" onclick="setBusType('external')">
+                        🔀 External / Other Depot Bus
+                    </button>
+                </div>
+
+                <!-- Depot bus fields -->
+                <div id="depotBusFields">
+                    <div class="refuel-form-grid">
+                        <div>
+                            <label for="busBusSelect">Select Bus</label>
+                            <select id="busBusSelect" onchange="onBusSelected()">
+                                <option value="">-- Select a bus --</option>
+                                {% for bus in all_buses %}
+                                <option value="{{ bus.id }}"
+                                        data-fuel="{{ bus.current_fuel_liters|floatformat:1 }}"
+                                        data-cap="{{ bus.fuel_capacity_liters }}"
+                                        data-code="{{ bus.bus_code }}">
+                                    {{ bus.bus_code }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="depotRefuelAmount">Refuel Amount (Litres)</label>
+                            <input type="number" id="depotRefuelAmount" min="1" step="1"
+                                   placeholder="e.g. 50" oninput="onAmountChange()">
+                        </div>
+                    </div>
+
+                    <!-- Inline bus tank animation -->
+                    <div class="inline-tank-wrap" id="inlineTankWrap" style="display:none;">
+                        <div class="inline-tank-svg-container">
+                            <svg id="inlineBusTankSvg" viewBox="0 0 100 155" width="100" height="155"
+                                 xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:1;">
+                                <defs>
+                                    <linearGradient id="ibBodyGrad" x1="0" y1="0" x2="1" y2="0">
+                                        <stop offset="0%" stop-color="#b0c4de"/>
+                                        <stop offset="40%" stop-color="#dce8f5"/>
+                                        <stop offset="100%" stop-color="#8facc8"/>
+                                    </linearGradient>
+                                    <linearGradient id="ibFuelGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stop-color="#f5c518"/>
+                                        <stop offset="100%" stop-color="#e07b00"/>
+                                    </linearGradient>
+                                    <linearGradient id="ibFuelLowGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stop-color="#ff7675"/>
+                                        <stop offset="100%" stop-color="#d63031"/>
+                                    </linearGradient>
+                                    <clipPath id="ibTankClip">
+                                        <rect x="11" y="18" width="78" height="116" rx="10" ry="10"/>
+                                    </clipPath>
+                                </defs>
+                                <rect x="11" y="18" width="78" height="116" rx="10" ry="10"
+                                      fill="url(#ibBodyGrad)" stroke="#7a9cbf" stroke-width="2"/>
+                                <rect id="ibFuelRect" x="12" y="134" width="76" height="0"
+                                      clip-path="url(#ibTankClip)" fill="url(#ibFuelGrad)"/>
+                                <g clip-path="url(#ibTankClip)">
+                                    <path id="ibWavePath" d="M12,134 Q35,130 50,134 Q65,138 89,134 L89,134 L12,134 Z"
+                                          fill="rgba(255,255,255,0.3)"/>
+                                </g>
+                                <rect x="16" y="23" width="7" height="90" rx="3" fill="rgba(255,255,255,0.22)"/>
+                                <g stroke="#5a7a9a" stroke-width="1" font-size="7" fill="#4a6a8a" font-family="Arial,sans-serif">
+                                    <line x1="89" y1="21" x2="94" y2="21"/><text x="95" y="24">100%</text>
+                                    <line x1="89" y1="47" x2="94" y2="47"/><text x="95" y="50">75%</text>
+                                    <line x1="89" y1="76" x2="94" y2="76"/><text x="95" y="79">50%</text>
+                                    <line x1="89" y1="105" x2="94" y2="105"/><text x="95" y="108">25%</text>
+                                    <line x1="89" y1="132" x2="94" y2="132"/><text x="95" y="135">0%</text>
+                                    <line x1="12" y1="118" x2="88" y2="118" stroke="#e03a3a" stroke-width="1" stroke-dasharray="3,3" opacity="0.7"/>
+                                </g>
+                                <rect x="37" y="8" width="26" height="13" rx="4" fill="#8facc8" stroke="#7a9cbf" stroke-width="1.5"/>
+                                <rect x="42" y="3" width="16" height="8" rx="3" fill="#7a9cbf" stroke="#6a8caf" stroke-width="1"/>
+                                <text id="ibPctLabel" x="50" y="90" text-anchor="middle"
+                                      font-size="14" font-weight="bold" fill="white"
+                                      font-family="Arial,sans-serif" style="text-shadow:0 1px 3px rgba(0,0,0,0.4);">0%</text>
+                            </svg>
+                            <div class="inline-tank-bubble-layer" id="ibBubbleLayer"></div>
+                        </div>
+                        <div class="inline-tank-info">
+                            <div class="bus-label" id="ibBusLabel">Bus —</div>
+                            <div class="fuel-row">
+                                <div class="fstat">
+                                    <div class="val" id="ibCurrentFuel">— L</div>
+                                    <div class="lbl">Current Fuel</div>
+                                </div>
+                                <div class="fstat">
+                                    <div class="val" id="ibCapacity">— L</div>
+                                    <div class="lbl">Capacity</div>
+                                </div>
+                                <div class="fstat">
+                                    <div class="val" id="ibSpaceAvail">— L</div>
+                                    <div class="lbl">Space Available</div>
+                                </div>
+                            </div>
+                            <div class="low-warn" id="ibLowWarn" style="display:none;">
+                                🚨 Low fuel — refuel recommended!
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- External bus fields -->
+                <div id="externalBusFields" style="display:none;">
+                    <div class="refuel-form-grid">
+                        <div>
+                            <label for="extBusCode">External Bus Code (Manual Entry)</label>
+                            <input type="text" id="extBusCode" placeholder="e.g. KE-1234, WT-5678"
+                                   style="text-transform:uppercase;">
+                        </div>
+                        <div>
+                            <label for="extRefuelAmount">Refuel Amount (Litres)</label>
+                            <input type="number" id="extRefuelAmount" min="1" step="1" placeholder="e.g. 80">
+                        </div>
+                    </div>
+                    <div style="font-size:0.82rem;color:#7a6a3a;background:#fffbea;border:1px solid #f5d87a;border-radius:7px;padding:9px 13px;margin-bottom:12px;">
+                        ℹ️ Fuel will be deducted from the depot tank. The external bus fuel level is not tracked in this system.
+                    </div>
+                </div>
+
+                <div class="refuel-submit-row">
+                    <button class="refuel-submit-btn" id="refuelSubmitBtn" onclick="submitBusRefuel()">⛽ Refuel Bus</button>
+                    <button class="cancel-refuel-btn" onclick="toggleRefuelForm()">Cancel</button>
+                    <span id="refuelFormMsg"></span>
+                </div>
+            </div>
+
+            {% if bus_refuel_added %}
+            <div class="alert alert-success py-2 px-3 mb-3" style="font-size:0.9rem;">✅ Bus refuel record added successfully.</div>
+            {% endif %}
+            {% if bus_refuel_error %}
+            <div class="alert alert-danger py-2 px-3 mb-3" style="font-size:0.9rem;">❌ {{ bus_refuel_error }}</div>
+            {% endif %}
+
             <form method="get" action="{% url 'fuel_dashboard' %}" class="filter-bar">
                 {% if hist_date_from %}<input type="hidden" name="hist_date_from" value="{{ hist_date_from }}">{% endif %}
                 {% if hist_date_to %}<input type="hidden" name="hist_date_to" value="{{ hist_date_to }}">{% endif %}
                 <label>Filter by Date:</label>
-                <input type="date" name="log_date_from" class="form-control" style="width:160px;"
-                       value="{{ log_date_from }}" placeholder="From">
+                <input type="date" name="log_date_from" class="form-control" style="width:160px;" value="{{ log_date_from }}" placeholder="From">
                 <span>to</span>
-                <input type="date" name="log_date_to" class="form-control" style="width:160px;"
-                       value="{{ log_date_to }}" placeholder="To">
+                <input type="date" name="log_date_to" class="form-control" style="width:160px;" value="{{ log_date_to }}" placeholder="To">
                 <label style="margin-left:12px;">Bus Code:</label>
                 <select name="log_bus_code" class="form-select" style="width:160px;">
                     <option value="">-- All Buses --</option>
                     {% for bus in all_buses %}
-                        <option value="{{ bus.bus_code }}" {% if bus.bus_code == log_bus_code %}selected{% endif %}>
-                            {{ bus.bus_code }}
-                        </option>
+                        <option value="{{ bus.bus_code }}" {% if bus.bus_code == log_bus_code %}selected{% endif %}>{{ bus.bus_code }}</option>
                     {% endfor %}
                 </select>
                 <button type="submit" class="manage-btn" style="padding:6px 16px;font-size:0.88rem;">Filter</button>
@@ -224,6 +429,7 @@
                    class="btn btn-outline-secondary btn-sm">Clear</a>
                 {% endif %}
             </form>
+
             {% if refuel_logs %}
             <div class="log-table-wrap">
                 <table class="log-table">
@@ -234,16 +440,23 @@
                             <th>Fuel Before</th>
                             <th>Fuel After</th>
                             <th>Depot Before</th>
-                            <th>Date & Time</th>
+                            <th>Date &amp; Time</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for log in refuel_logs %}
                         <tr>
-                            <td><span class="badge-bus">{{ log.bus.bus_code }}</span></td>
+                            <td>
+                                {% if log.is_external_bus %}
+                                    <span class="badge-bus-ext">{{ log.external_bus_code }}</span>
+                                    <span class="ext-badge-sm">EXT</span>
+                                {% else %}
+                                    <span class="badge-bus">{{ log.bus.bus_code }}</span>
+                                {% endif %}
+                            </td>
                             <td><strong>{{ log.amount_liters|floatformat:1 }}</strong></td>
-                            <td>{{ log.fuel_before|floatformat:1 }}</td>
-                            <td>{{ log.fuel_after|floatformat:1 }}</td>
+                            <td>{% if log.is_external_bus %}—{% else %}{{ log.fuel_before|floatformat:1 }}{% endif %}</td>
+                            <td>{% if log.is_external_bus %}—{% else %}{{ log.fuel_after|floatformat:1 }}{% endif %}</td>
                             <td>{{ log.depot_level_before|floatformat:0 }}</td>
                             <td>{{ log.refueled_at|date:"d M Y H:i" }}</td>
                         </tr>
@@ -254,11 +467,9 @@
             {% else %}
             <p style="color:#888;font-size:14px;padding:16px 0;">No bus refuel events recorded yet.</p>
             {% endif %}
-            <!-- Generate Report Button -->
             <div class="mt-3 d-flex justify-content-end">
                 <a href="{% url 'fuel_refuel_log_report_csv' %}{% if log_date_from or log_date_to or log_bus_code %}?{% if log_bus_code %}log_bus_code={{ log_bus_code }}&{% endif %}{% if log_date_from %}log_date_from={{ log_date_from }}&{% endif %}{% if log_date_to %}log_date_to={{ log_date_to }}{% endif %}{% endif %}"
-                   class="manage-btn"
-                   style="display:inline-flex;align-items:center;gap:8px;padding:9px 22px;font-size:0.93rem;text-decoration:none;">
+                   class="manage-btn" style="display:inline-flex;align-items:center;gap:8px;padding:9px 22px;font-size:0.93rem;text-decoration:none;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5"/>
                         <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708z"/>
@@ -276,29 +487,31 @@
                 {% if log_date_to %}<input type="hidden" name="log_date_to" value="{{ log_date_to }}">{% endif %}
                 {% if log_bus_code %}<input type="hidden" name="log_bus_code" value="{{ log_bus_code }}">{% endif %}
                 <label>Filter by Date:</label>
-                <input type="date" name="hist_date_from" class="form-control" style="width:160px;"
-                       value="{{ hist_date_from }}" placeholder="From">
+                <input type="date" name="hist_date_from" class="form-control" style="width:160px;" value="{{ hist_date_from }}" placeholder="From">
                 <span>to</span>
-                <input type="date" name="hist_date_to" class="form-control" style="width:160px;"
-                       value="{{ hist_date_to }}" placeholder="To">
+                <input type="date" name="hist_date_to" class="form-control" style="width:160px;" value="{{ hist_date_to }}" placeholder="To">
                 <button type="submit" class="manage-btn" style="padding:6px 16px;font-size:0.88rem;">Filter</button>
                 {% if hist_date_from or hist_date_to %}
                 <a href="{% url 'fuel_dashboard' %}{% if log_date_from or log_date_to or log_bus_code %}?{% if log_bus_code %}log_bus_code={{ log_bus_code }}&{% endif %}{% if log_date_from %}log_date_from={{ log_date_from }}&{% endif %}{% if log_date_to %}log_date_to={{ log_date_to }}{% endif %}{% endif %}"
                    class="btn btn-outline-secondary btn-sm">Clear</a>
                 {% endif %}
             </form>
-            {% if refuel_logs %}
-            <div class="chart-canvas-wrap">
-                <canvas id="refuelChart"></canvas>
+
+            <!-- Depot/External filter pills -->
+            <div class="chart-depot-filter">
+                <button class="cdf-btn active" id="cdfAll"   onclick="setChartFilter('all')">All Buses</button>
+                <button class="cdf-btn"        id="cdfDepot" onclick="setChartFilter('depot')">🚌 KS Depot Only</button>
+                <button class="cdf-btn ext"    id="cdfExt"   onclick="setChartFilter('external')">🔀 External Only</button>
             </div>
+
+            {% if refuel_logs %}
+            <div class="chart-canvas-wrap"><canvas id="refuelChart"></canvas></div>
             {% else %}
             <p style="color:#888;font-size:14px;padding:16px 0;">No refuel data to display yet.</p>
             {% endif %}
-            <!-- Generate Report Button -->
             <div class="mt-3 d-flex justify-content-end">
                 <a href="{% url 'fuel_refuel_history_report_csv' %}{% if hist_date_from or hist_date_to %}?{% if hist_date_from %}hist_date_from={{ hist_date_from }}&{% endif %}{% if hist_date_to %}hist_date_to={{ hist_date_to }}{% endif %}{% endif %}"
-                   class="manage-btn"
-                   style="display:inline-flex;align-items:center;gap:8px;padding:9px 22px;font-size:0.93rem;text-decoration:none;">
+                   class="manage-btn" style="display:inline-flex;align-items:center;gap:8px;padding:9px 22px;font-size:0.93rem;text-decoration:none;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                         <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5"/>
                         <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708z"/>
@@ -310,11 +523,10 @@
     </div>
 </main>
 
-<!-- ── Footer ───────────────────────────────────────────── -->
 <footer class="summary-row">
-    <span>Current Level: <strong>{{ tank.current_level_liters|floatformat:0 }} L</strong></span>
+    <span>Current Level: <strong id="footerLevel">{{ tank.current_level_liters|floatformat:0 }} L</strong></span>
     <span>Capacity: <strong>30,000 L</strong></span>
-    <span>Fill %: <strong>{{ fill_pct|floatformat:1 }}%</strong></span>
+    <span>Fill %: <strong id="footerPct">{{ fill_pct|floatformat:1 }}%</strong></span>
     <span>Status: <strong>{{ fuel_status }}</strong></span>
 </footer>
 
@@ -325,16 +537,21 @@ const TANK_MAX      = {{ tank.max_capacity_liters }};
 const LOW_THRESHOLD = 3000;
 const REFILLED      = {{ just_refilled|lower }};
 const BUS_REFUEL_DATA = {{ bus_refuel_summary_json|safe }};
+const BUS_FUEL_DATA   = {{ bus_fuel_data_json|safe }};
 const LOW_BUS_CODES = [{% for b in low_fuel_buses %}"{{ b.bus_code }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+const CSRF_TOKEN = "{{ csrf_token }}";
 
 let notifications = [];
+let currentDepotFuel = TANK_CURRENT;
 
-// ── Tank animation ─────────────────────────────────────
+/* ═══════════════════════════════════════════════
+   DEPOT TANK ANIMATION
+═══════════════════════════════════════════════ */
 function animateTank(targetPct, duration) {
     duration = duration || 1800;
-    const fuelRect  = document.getElementById('fuelRect');
-    const wavePath  = document.getElementById('wavePath');
-    const pctLabel  = document.getElementById('pctLabel');
+    const fuelRect = document.getElementById('fuelRect');
+    const wavePath = document.getElementById('wavePath');
+    const pctLabel = document.getElementById('pctLabel');
     const tankTop = 62, tankBottom = 338, tankHeight = tankBottom - tankTop;
     const clampedPct = Math.max(0, Math.min(100, targetPct));
     const startY  = parseFloat(fuelRect.getAttribute('y')) || tankBottom;
@@ -347,13 +564,11 @@ function animateTank(targetPct, duration) {
         const currentY = startY + (targetY - startY) * ease;
         fuelRect.setAttribute('y', currentY);
         fuelRect.setAttribute('height', tankBottom - currentY);
-        const low = clampedPct < 10;
-        fuelRect.setAttribute('fill', low ? 'url(#fuelLowGrad)' : 'url(#fuelGrad)');
+        fuelRect.setAttribute('fill', clampedPct < 10 ? 'url(#fuelLowGrad)' : 'url(#fuelGrad)');
         const wX = 31, wW = 198, amp = 4;
         wavePath.setAttribute('d',
             `M${wX},${currentY} Q${wX+wW*0.25},${currentY-amp} ${wX+wW*0.5},${currentY} ` +
-            `Q${wX+wW*0.75},${currentY+amp} ${wX+wW},${currentY} L${wX+wW},${currentY} L${wX},${currentY} Z`
-        );
+            `Q${wX+wW*0.75},${currentY+amp} ${wX+wW},${currentY} L${wX+wW},${currentY} L${wX},${currentY} Z`);
         const labelY = Math.max(currentY + 36, tankTop + 36);
         pctLabel.setAttribute('y', labelY);
         pctLabel.textContent = Math.round(clampedPct) + '%';
@@ -366,18 +581,13 @@ function spawnBubble() {
     const container = document.getElementById('bubbleContainer');
     const b = document.createElement('div');
     b.className = 'bubble';
-    const size = 6 + Math.random() * 12;
-    const leftPct = 10 + Math.random() * 80;
-    const dur = 2.5 + Math.random() * 3;
-    const delay = Math.random() * 2;
+    const size = 6 + Math.random() * 12, leftPct = 10 + Math.random() * 80;
+    const dur = 2.5 + Math.random() * 3, delay = Math.random() * 2;
     b.style.cssText = `width:${size}px;height:${size}px;left:${leftPct}%;bottom:0;animation-duration:${dur}s;animation-delay:${delay}s;`;
     container.appendChild(b);
     setTimeout(() => b.remove(), (dur + delay) * 1000 + 200);
 }
-
-function spawnBubbles(count) {
-    for (let i = 0; i < count; i++) setTimeout(spawnBubble, i * 80);
-}
+function spawnBubbles(count) { for (let i = 0; i < count; i++) setTimeout(spawnBubble, i * 80); }
 
 function updateStats(liters) {
     const pct = (liters / TANK_MAX) * 100;
@@ -385,80 +595,256 @@ function updateStats(liters) {
     document.getElementById('statPctVal').textContent = pct.toFixed(1) + '%';
     document.getElementById('statCurrent').classList.toggle('warn', liters < LOW_THRESHOLD);
     document.getElementById('lowAlert').style.display = liters < LOW_THRESHOLD ? 'block' : 'none';
+    document.getElementById('footerLevel').textContent = Math.round(liters).toLocaleString() + ' L';
+    document.getElementById('footerPct').textContent = pct.toFixed(1) + '%';
 }
 
-// ── Notifications ─────────────────────────────────────
-function addNotification(icon, title, detail) {
-    notifications.unshift({ icon, title, detail, time: new Date() });
-    renderNotifications();
-    document.getElementById('badgeDot').style.display = 'block';
-    document.getElementById('bellDot').style.display = 'block';
-}
-
-function renderNotifications() {
-    const list  = document.getElementById('notifList');
-    const empty = document.getElementById('notifEmpty');
-    const count = document.getElementById('notifCount');
-    count.textContent = notifications.length;
-    if (notifications.length === 0) {
-        empty.style.display = 'block';
-        list.querySelectorAll('.notif-item').forEach(e => e.remove());
-        return;
+/* ═══════════════════════════════════════════════
+   INLINE BUS TANK ANIMATION
+═══════════════════════════════════════════════ */
+function animateInlineTank(targetPct, duration) {
+    duration = duration || 900;
+    const fuelRect = document.getElementById('ibFuelRect');
+    const wavePath = document.getElementById('ibWavePath');
+    const pctLabel = document.getElementById('ibPctLabel');
+    const tankTop = 20, tankBottom = 134, tankHeight = tankBottom - tankTop;
+    const clampedPct = Math.max(0, Math.min(100, targetPct));
+    const startY  = parseFloat(fuelRect.getAttribute('y')) || tankBottom;
+    const targetY = tankBottom - (clampedPct / 100) * tankHeight;
+    let start = null;
+    function step(ts) {
+        if (!start) start = ts;
+        const prog = Math.min((ts - start) / duration, 1);
+        const ease = 1 - Math.pow(1 - prog, 3);
+        const curY = startY + (targetY - startY) * ease;
+        fuelRect.setAttribute('y', curY);
+        fuelRect.setAttribute('height', tankBottom - curY);
+        fuelRect.setAttribute('fill', clampedPct < 20 ? 'url(#ibFuelLowGrad)' : 'url(#ibFuelGrad)');
+        const wX = 12, wW = 76, amp = 2.5;
+        wavePath.setAttribute('d',
+            `M${wX},${curY} Q${wX+wW*0.25},${curY-amp} ${wX+wW*0.5},${curY} ` +
+            `Q${wX+wW*0.75},${curY+amp} ${wX+wW},${curY} L${wX+wW},${curY} L${wX},${curY} Z`);
+        const labelY = Math.max(curY + 16, tankTop + 16);
+        pctLabel.setAttribute('y', labelY);
+        pctLabel.textContent = Math.round(clampedPct) + '%';
+        if (prog < 1) requestAnimationFrame(step);
     }
-    empty.style.display = 'none';
-    list.innerHTML = '';
-    notifications.forEach(n => {
-        const mins = Math.round((new Date() - n.time) / 60000);
-        const timeStr = mins < 1 ? 'Just now' : `${mins}m ago`;
-        const div = document.createElement('div');
-        div.className = 'notif-item';
-        div.innerHTML = `
-            <div class="notif-icon">${n.icon}</div>
-            <div class="notif-text">
-                <strong>${n.title}</strong>
-                <span>${n.detail}</span><br>
-                <span style="color:#bbb;font-size:11px;">${timeStr}</span>
-            </div>`;
-        list.appendChild(div);
-    });
+    requestAnimationFrame(step);
 }
 
-function toggleNotifPanel() {
-    const panel = document.getElementById('notifPanel');
-    panel.classList.toggle('open');
-    if (panel.classList.contains('open')) {
-        document.getElementById('badgeDot').style.display = 'none';
-        document.getElementById('bellDot').style.display = 'none';
-        renderNotifications();
+function spawnInlineBubble() {
+    const c = document.getElementById('ibBubbleLayer');
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    const sz = 3 + Math.random() * 6, lp = 10 + Math.random() * 80, dur = 1.5 + Math.random() * 2;
+    b.style.cssText = `width:${sz}px;height:${sz}px;left:${lp}%;bottom:0;animation-duration:${dur}s;`;
+    c.appendChild(b);
+    setTimeout(() => b.remove(), (dur + 0.3) * 1000);
+}
+
+/* ═══════════════════════════════════════════════
+   REFUEL FORM
+═══════════════════════════════════════════════ */
+let busTypeMode = 'depot';
+let selectedBusData = null;
+let ibBubbleInterval = null;
+
+function toggleRefuelForm() {
+    const wrap = document.getElementById('busRefuelFormWrap');
+    const btn  = document.getElementById('toggleRefuelFormBtn');
+    const open = wrap.style.display === 'block';
+    wrap.style.display = open ? 'none' : 'block';
+    btn.innerHTML = open
+        ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/></svg> Add Bus Refuel Record'
+        : '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M4 8a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7A.5.5 0 0 1 4 8"/></svg> Close';
+    if (open) {
+        clearMsg();
+        document.getElementById('inlineTankWrap').style.display = 'none';
+        document.getElementById('busBusSelect').value = '';
+        document.getElementById('depotRefuelAmount').value = '';
+        document.getElementById('extBusCode').value = '';
+        document.getElementById('extRefuelAmount').value = '';
+        selectedBusData = null;
+        if (ibBubbleInterval) { clearInterval(ibBubbleInterval); ibBubbleInterval = null; }
     }
 }
 
-document.addEventListener('click', function(e) {
-    const panel = document.getElementById('notifPanel');
-    const bell  = document.getElementById('bellBtn');
-    if (panel.classList.contains('open') && !panel.contains(e.target) && !bell.contains(e.target)) {
-        panel.classList.remove('open');
-    }
-});
+function setBusType(type) {
+    busTypeMode = type;
+    document.getElementById('btnDepotBus').classList.toggle('active', type === 'depot');
+    document.getElementById('btnExtBus').classList.toggle('active', type === 'external');
+    document.getElementById('depotBusFields').style.display   = type === 'depot'    ? 'block' : 'none';
+    document.getElementById('externalBusFields').style.display = type === 'external' ? 'block' : 'none';
+    clearMsg();
+}
 
-// ── Chart ─────────────────────────────────────────────
-function buildChart() {
+function onBusSelected() {
+    const sel  = document.getElementById('busBusSelect');
+    const opt  = sel.options[sel.selectedIndex];
+    const wrap = document.getElementById('inlineTankWrap');
+    if (!sel.value) { wrap.style.display = 'none'; selectedBusData = null; return; }
+
+    const fuel = parseFloat(opt.dataset.fuel);
+    const cap  = parseFloat(opt.dataset.cap);
+    const code = opt.dataset.code;
+    const pct  = cap > 0 ? (fuel / cap) * 100 : 0;
+    selectedBusData = { id: sel.value, fuel, cap, code, pct };
+
+    wrap.style.display = 'flex';
+    document.getElementById('ibBusLabel').textContent      = 'Bus ' + code;
+    document.getElementById('ibCurrentFuel').textContent   = fuel.toFixed(1) + ' L';
+    document.getElementById('ibCurrentFuel').classList.toggle('warn', fuel < 40);
+    document.getElementById('ibCapacity').textContent      = cap.toFixed(0) + ' L';
+    document.getElementById('ibSpaceAvail').textContent    = (cap - fuel).toFixed(1) + ' L';
+    document.getElementById('ibLowWarn').style.display     = fuel < 40 ? 'block' : 'none';
+
+    // Reset then animate to real level
+    const fr = document.getElementById('ibFuelRect');
+    fr.setAttribute('y', 134); fr.setAttribute('height', 0);
+    animateInlineTank(pct, 1000);
+
+    if (ibBubbleInterval) clearInterval(ibBubbleInterval);
+    if (fuel > 0) ibBubbleInterval = setInterval(() => { if (Math.random() < 0.5) spawnInlineBubble(); }, 700);
+    onAmountChange();
+}
+
+function onAmountChange() {
+    if (!selectedBusData) return;
+    const amt = parseFloat(document.getElementById('depotRefuelAmount').value) || 0;
+    if (amt > 0) {
+        const newFuel = Math.min(selectedBusData.cap, selectedBusData.fuel + amt);
+        animateInlineTank((newFuel / selectedBusData.cap) * 100, 700);
+        spawnInlineBubble(); spawnInlineBubble();
+    } else {
+        animateInlineTank(selectedBusData.pct, 500);
+    }
+}
+
+function clearMsg() {
+    const msg = document.getElementById('refuelFormMsg');
+    msg.style.display = 'none'; msg.className = ''; msg.textContent = '';
+}
+function showMsg(text, isError) {
+    const msg = document.getElementById('refuelFormMsg');
+    msg.textContent = text;
+    msg.className = isError ? 'error' : 'success';
+    msg.style.display = 'inline';
+    if (!isError) setTimeout(clearMsg, 5000);
+}
+
+function submitBusRefuel() {
+    clearMsg();
+    const btn = document.getElementById('refuelSubmitBtn');
+    btn.disabled = true;
+
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', CSRF_TOKEN);
+
+    if (busTypeMode === 'external') {
+        const code = document.getElementById('extBusCode').value.trim().toUpperCase();
+        const amt  = document.getElementById('extRefuelAmount').value.trim();
+        if (!code) { showMsg('Please enter the external bus code.', true); btn.disabled = false; return; }
+        if (!amt || parseFloat(amt) <= 0) { showMsg('Please enter a valid fuel amount.', true); btn.disabled = false; return; }
+        fd.append('is_external', 'true');
+        fd.append('external_bus_code', code);
+        fd.append('amount', amt);
+    } else {
+        if (!selectedBusData) { showMsg('Please select a bus first.', true); btn.disabled = false; return; }
+        const amt = document.getElementById('depotRefuelAmount').value.trim();
+        if (!amt || parseFloat(amt) <= 0) { showMsg('Please enter a valid fuel amount.', true); btn.disabled = false; return; }
+        fd.append('is_external', 'false');
+        fd.append('bus_id', selectedBusData.id);
+        fd.append('amount', amt);
+    }
+
+    fetch("{% url 'fuel_bus_refuel' %}", { method:'POST', body:fd })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            if (data.success) {
+                showMsg('✅ ' + data.message, false);
+
+                // Live-update depot tank display
+                currentDepotFuel = data.depot_fuel;
+                const depotPct = (currentDepotFuel / TANK_MAX) * 100;
+                animateTank(depotPct, 1000);
+                updateStats(currentDepotFuel);
+                spawnBubbles(8);
+
+                // Update inline bus tank for depot buses
+                if (!data.is_external && selectedBusData) {
+                    const newFuel = data.bus_fuel_after;
+                    selectedBusData.fuel = newFuel;
+                    selectedBusData.pct  = data.bus_fuel_pct;
+                    document.getElementById('ibCurrentFuel').textContent = newFuel.toFixed(1) + ' L';
+                    document.getElementById('ibCurrentFuel').classList.toggle('warn', newFuel < 40);
+                    document.getElementById('ibSpaceAvail').textContent = (selectedBusData.cap - newFuel).toFixed(1) + ' L';
+                    document.getElementById('ibLowWarn').style.display = newFuel < 40 ? 'block' : 'none';
+                    animateInlineTank(data.bus_fuel_pct, 800);
+                    spawnInlineBubble(); spawnInlineBubble(); spawnInlineBubble();
+                    document.getElementById('depotRefuelAmount').value = '';
+                    // Update dropdown option data
+                    const sel = document.getElementById('busBusSelect');
+                    sel.options[sel.selectedIndex].dataset.fuel = newFuel;
+                }
+                if (data.is_external) {
+                    document.getElementById('extBusCode').value = '';
+                    document.getElementById('extRefuelAmount').value = '';
+                }
+
+                addNotification('✅', `Bus ${data.bus_code} Refuelled`,
+                    `${parseFloat(fd.get('amount')).toFixed(0)} L added. Depot: ${Math.round(data.depot_fuel).toLocaleString()} L.`);
+
+                // Reload to refresh the log table and chart
+                setTimeout(() => location.reload(), 2600);
+            } else {
+                showMsg('❌ ' + data.error, true);
+            }
+        })
+        .catch(() => { btn.disabled = false; showMsg('❌ Network error. Please try again.', true); });
+}
+
+/* ═══════════════════════════════════════════════
+   CHART WITH DEPOT/EXTERNAL FILTER
+═══════════════════════════════════════════════ */
+let refuelChart = null;
+let chartFilter = 'all';
+
+function setChartFilter(mode) {
+    chartFilter = mode;
+    ['cdfAll','cdfDepot','cdfExt'].forEach(id => document.getElementById(id).classList.remove('active'));
+    const idMap = { all:'cdfAll', depot:'cdfDepot', external:'cdfExt' };
+    document.getElementById(idMap[mode]).classList.add('active');
+    buildChart(mode);
+}
+
+function buildChart(filter) {
     const canvas = document.getElementById('refuelChart');
     if (!canvas || BUS_REFUEL_DATA.length === 0) return;
-    const labels = BUS_REFUEL_DATA.map(d => d.bus_code);
-    const values = BUS_REFUEL_DATA.map(d => d.total);
-    const colors = labels.map(code =>
-        LOW_BUS_CODES.includes(code) ? 'rgba(224,58,58,0.8)' : 'rgba(10,77,178,0.8)'
+
+    let data = BUS_REFUEL_DATA;
+    if (filter === 'depot')    data = BUS_REFUEL_DATA.filter(d => !d.is_external);
+    if (filter === 'external') data = BUS_REFUEL_DATA.filter(d =>  d.is_external);
+
+    const labels = data.map(d => d.bus_code);
+    const values = data.map(d => d.total);
+    const bgColors = data.map(d =>
+        d.is_external
+            ? 'rgba(155,77,178,0.82)'
+            : (LOW_BUS_CODES.includes(d.bus_code) ? 'rgba(224,58,58,0.8)' : 'rgba(10,77,178,0.8)')
     );
-    new Chart(canvas, {
+    const borderColors = bgColors.map(c => c.replace(/[\d.]+\)$/, '1)'));
+
+    if (refuelChart) refuelChart.destroy();
+    refuelChart = new Chart(canvas, {
         type: 'bar',
         data: {
             labels,
             datasets: [{
                 label: 'Total Fuel Refilled (L)',
                 data: values,
-                backgroundColor: colors,
-                borderColor: colors.map(c => c.replace('0.8', '1')),
+                backgroundColor: bgColors,
+                borderColor: borderColors,
                 borderWidth: 1.5,
                 borderRadius: 6,
             }]
@@ -470,23 +856,62 @@ function buildChart() {
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        label: ctx => ` ${ctx.parsed.y.toLocaleString()} L refuelled`
+                        label: ctx => {
+                            const d = data[ctx.dataIndex];
+                            return ` ${ctx.parsed.y.toLocaleString()} L refuelled [${d.is_external ? 'External' : 'KS Depot'}]`;
+                        }
                     }
                 }
             },
             scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: { color: 'rgba(0,0,0,0.06)' },
-                    ticks: { callback: v => v + ' L' }
-                },
-                x: { grid: { display: false } }
+                y: { beginAtZero:true, grid:{ color:'rgba(0,0,0,0.06)' }, ticks:{ callback: v => v + ' L' } },
+                x: { grid:{ display:false } }
             }
         }
     });
 }
 
-// ── Init ──────────────────────────────────────────────
+/* ═══════════════════════════════════════════════
+   NOTIFICATIONS
+═══════════════════════════════════════════════ */
+function addNotification(icon, title, detail) {
+    notifications.unshift({ icon, title, detail, time: new Date() });
+    renderNotifications();
+    document.getElementById('badgeDot').style.display = 'block';
+    document.getElementById('bellDot').style.display  = 'block';
+}
+function renderNotifications() {
+    const list = document.getElementById('notifList');
+    const empty = document.getElementById('notifEmpty');
+    document.getElementById('notifCount').textContent = notifications.length;
+    if (!notifications.length) { empty.style.display = 'block'; list.querySelectorAll('.notif-item').forEach(e=>e.remove()); return; }
+    empty.style.display = 'none'; list.innerHTML = '';
+    notifications.forEach(n => {
+        const mins = Math.round((new Date() - n.time) / 60000);
+        const div = document.createElement('div'); div.className = 'notif-item';
+        div.innerHTML = `<div class="notif-icon">${n.icon}</div><div class="notif-text"><strong>${n.title}</strong><span>${n.detail}</span><br><span style="color:#bbb;font-size:11px;">${mins < 1 ? 'Just now' : mins + 'm ago'}</span></div>`;
+        list.appendChild(div);
+    });
+}
+function toggleNotifPanel() {
+    const panel = document.getElementById('notifPanel');
+    panel.classList.toggle('open');
+    if (panel.classList.contains('open')) {
+        document.getElementById('badgeDot').style.display = 'none';
+        document.getElementById('bellDot').style.display  = 'none';
+        renderNotifications();
+    }
+}
+document.addEventListener('click', e => {
+    const panel = document.getElementById('notifPanel');
+    const bell  = document.getElementById('bellBtn');
+    if (panel.classList.contains('open') && !panel.contains(e.target) && !bell.contains(e.target))
+        panel.classList.remove('open');
+});
+
+/* ═══════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════ */
 window.addEventListener('DOMContentLoaded', () => {
     const pct = (TANK_CURRENT / TANK_MAX) * 100;
     updateStats(TANK_CURRENT);
@@ -502,23 +927,16 @@ window.addEventListener('DOMContentLoaded', () => {
         animateTank(pct, 1800);
     }
 
-    if (TANK_CURRENT > 0) {
-        setInterval(() => { if (Math.random() < 0.6) spawnBubble(); }, 600);
-    }
+    if (TANK_CURRENT > 0) setInterval(() => { if (Math.random() < 0.6) spawnBubble(); }, 600);
 
     if (TANK_CURRENT < LOW_THRESHOLD) {
-        addNotification('⛽', 'Critical Depot Fuel Level',
-            `Tank at ${Math.round(TANK_CURRENT).toLocaleString()} L — below 3,000 L threshold!`);
+        addNotification('⛽', 'Critical Depot Fuel Level', `Tank at ${Math.round(TANK_CURRENT).toLocaleString()} L — below 3,000 L threshold!`);
         document.getElementById('badgeDot').style.display = 'block';
     }
 
-    // Low bus fuel notifications
-    LOW_BUS_CODES.forEach(code => {
-        addNotification('🚌', `Bus ${code} – Low Fuel`,
-            `Fuel below 40 L — refuel recommended before next trip.`);
-    });
+    LOW_BUS_CODES.forEach(code => addNotification('🚌', `Bus ${code} – Low Fuel`, `Fuel below 40 L — refuel recommended.`));
 
-    buildChart();
+    buildChart('all');
 });
 </script>
 </body>

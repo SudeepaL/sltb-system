@@ -1341,16 +1341,33 @@ def fuel_dashboard(request):
     if hist_date_to:
         history_qs = history_qs.filter(refueled_at__date__lte=hist_date_to)
 
+    # Collect all local bus codes (KS depot) for filtering
+    local_bus_codes = set(Bus.objects.values_list('bus_code', flat=True))
+
     bus_totals = defaultdict(float)
     for log in history_qs:
-        bus_totals[log.bus.bus_code] += log.amount_liters
-    bus_refuel_summary = [{'bus_code': k, 'total': round(v, 1)} for k, v in sorted(bus_totals.items())]
+        code = log.effective_bus_code
+        bus_totals[code] += log.amount_liters
+    bus_refuel_summary = [
+        {
+            'bus_code': k,
+            'total': round(v, 1),
+            'is_external': k not in local_bus_codes,
+        }
+        for k, v in sorted(bus_totals.items())
+    ]
 
     # All buses (for bus code dropdown)
     all_buses = Bus.objects.all().order_by('bus_code')
 
     # All buses with low fuel (< 40L) for notifications
     low_fuel_buses = Bus.objects.filter(current_fuel_liters__lt=40).order_by('bus_code')
+
+    # Pass bus data as JSON for the AJAX refuel panel
+    bus_fuel_data = list(Bus.objects.values('id', 'bus_code', 'current_fuel_liters', 'fuel_capacity_liters').order_by('bus_code'))
+
+    bus_refuel_added = request.session.pop('bus_refuel_added', False)
+    bus_refuel_error = request.session.pop('bus_refuel_error', None)
 
     context = {
         'tank': tank,
@@ -1360,8 +1377,11 @@ def fuel_dashboard(request):
         'module_buttons': _module_buttons('fuel_usage'),
         'refuel_logs': refuel_logs,
         'bus_refuel_summary_json': json.dumps(bus_refuel_summary),
+        'bus_fuel_data_json': json.dumps(bus_fuel_data),
         'low_fuel_buses': low_fuel_buses,
         'all_buses': all_buses,
+        'bus_refuel_added': bus_refuel_added,
+        'bus_refuel_error': bus_refuel_error,
         # log table filters
         'log_date_from': log_date_from,
         'log_date_to': log_date_to,
@@ -1412,7 +1432,7 @@ def fuel_refuel_log_report_csv(request):
     total = 0
     for log in qs:
         writer.writerow([
-            log.bus.bus_code,
+            log.effective_bus_code,
             f'{log.amount_liters:.1f}',
             f'{log.fuel_before:.1f}',
             f'{log.fuel_after:.1f}',
@@ -1459,8 +1479,8 @@ def fuel_refuel_history_report_csv(request):
 
     bus_totals = defaultdict(lambda: {'total': 0, 'count': 0})
     for log in qs:
-        bus_totals[log.bus.bus_code]['total'] += log.amount_liters
-        bus_totals[log.bus.bus_code]['count'] += 1
+        bus_totals[log.effective_bus_code]['total'] += log.amount_liters
+        bus_totals[log.effective_bus_code]['count'] += 1
 
     grand_total = 0
     for bus_code in sorted(bus_totals.keys()):
@@ -1732,3 +1752,92 @@ def revenue_api_status(request, trip_id):
 
     except TripRevenue.DoesNotExist:
         return JsonResponse({'ok': False, 'passengers': 0, 'revenue': 0.0})
+
+
+def fuel_bus_refuel(request):
+    """AJAX endpoint: refuel a bus (or external bus) from the fuel dashboard."""
+    from django.http import JsonResponse
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
+
+    tank = DepotFuelTank.get_tank()
+    is_external = request.POST.get('is_external', 'false').lower() == 'true'
+    amount_str = request.POST.get('amount', '0').strip()
+
+    try:
+        amount = float(amount_str)
+    except (ValueError, TypeError):
+        amount = 0
+
+    if amount <= 0:
+        return JsonResponse({'success': False, 'error': 'Please enter a valid fuel amount greater than zero.'})
+    if amount > tank.current_level_liters:
+        return JsonResponse({'success': False, 'error': f'Insufficient depot fuel. Only {tank.current_level_liters:.0f} L available.'})
+
+    depot_before = tank.current_level_liters
+
+    if is_external:
+        ext_code = request.POST.get('external_bus_code', '').strip().upper()
+        if not ext_code:
+            return JsonResponse({'success': False, 'error': 'Please enter the external bus code.'})
+        tank.current_level_liters = max(0, tank.current_level_liters - amount)
+        tank.save(update_fields=['current_level_liters', 'updated_at'])
+        BusRefuelLog.objects.create(
+            bus=None,
+            external_bus_code=ext_code,
+            is_external_bus=True,
+            amount_liters=amount,
+            fuel_before=0,
+            fuel_after=0,
+            depot_level_before=depot_before,
+            depot_level_after=tank.current_level_liters,
+        )
+        return JsonResponse({
+            'success': True,
+            'message': f'External bus {ext_code} refuelled with {amount:.0f} L.',
+            'depot_fuel': round(tank.current_level_liters, 1),
+            'depot_pct': round(tank.percentage(), 1),
+            'bus_code': ext_code,
+            'bus_fuel_after': None,
+            'is_external': True,
+        })
+    else:
+        bus_id = request.POST.get('bus_id', '').strip()
+        try:
+            bus = Bus.objects.get(id=int(bus_id))
+        except (Bus.DoesNotExist, ValueError, TypeError):
+            return JsonResponse({'success': False, 'error': 'Bus not found.'})
+
+        max_cap = float(bus.fuel_capacity_liters)
+        space = max_cap - bus.current_fuel_liters
+        if amount > space:
+            return JsonResponse({'success': False, 'error': f'Bus tank can only accept {space:.0f} L more (capacity: {max_cap:.0f} L).'})
+
+        bus_before = bus.current_fuel_liters
+        tank.current_level_liters = max(0, tank.current_level_liters - amount)
+        tank.save(update_fields=['current_level_liters', 'updated_at'])
+        bus.current_fuel_liters = min(max_cap, bus.current_fuel_liters + amount)
+        bus.save(update_fields=['current_fuel_liters'])
+        BusRefuelLog.objects.create(
+            bus=bus,
+            is_external_bus=False,
+            amount_liters=amount,
+            fuel_before=bus_before,
+            fuel_after=bus.current_fuel_liters,
+            depot_level_before=depot_before,
+            depot_level_after=tank.current_level_liters,
+        )
+        from .models import FuelTransaction
+        FuelTransaction.objects.create(bus=bus, transaction_type='FILL', amount_liters=amount)
+        bus_pct = round((bus.current_fuel_liters / max(max_cap, 1)) * 100, 1)
+        return JsonResponse({
+            'success': True,
+            'message': f'Bus {bus.bus_code} refuelled with {amount:.0f} L.',
+            'depot_fuel': round(tank.current_level_liters, 1),
+            'depot_pct': round(tank.percentage(), 1),
+            'bus_code': bus.bus_code,
+            'bus_fuel_after': round(bus.current_fuel_liters, 1),
+            'bus_fuel_pct': bus_pct,
+            'bus_capacity': int(max_cap),
+            'is_external': False,
+        })
