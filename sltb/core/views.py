@@ -98,12 +98,13 @@ def _maintenance_recommendations(issue_text):
 
 def _module_buttons(active_module):
     items = [
+        
         {'label': 'Buses',         'url': reverse('bus_dashboard'),       'key': 'buses'},
         {'label': 'Drivers',       'url': reverse('driver_dashboard'),    'key': 'drivers'},
         {'label': 'Conductors',    'url': reverse('conductor_dashboard'), 'key': 'conductors'},
         {'label': 'Manage Routes', 'url': reverse('route_dashboard'),     'key': 'manage_routes'},
-        {'label': 'View Timetable','url': reverse('timetable_dashboard'), 'key': 'view_timetable'},
-        {'label': 'Scheduling',    'url': reverse('scheduling_dashboard'),'key': 'scheduling'},
+        {'label': 'Manage Timetable','url': reverse('timetable_dashboard'), 'key': 'view_timetable'},
+        {'label': 'Manage Schedules',    'url': reverse('scheduling_dashboard'),'key': 'scheduling'},
         {'label': 'Fuel Usage',    'url': reverse('fuel_dashboard'),      'key': 'fuel_usage'},
         {'label': 'Maintenance',   'url': reverse('maintenance_dashboard'),'key': 'maintenance'},
         {'label': 'Current Trips', 'url': reverse('bus_trip_welcome'),    'key': 'current_trips'},
@@ -266,9 +267,14 @@ def bus_dashboard(request):
 
     return render(request, 'core/bus_dashboard.html', context)
 
-def _get_driver_rows():
+def _get_driver_rows(gender_filter=None, status_filter=None):
     rows = []
     drivers = Driver.objects.order_by('id')
+
+    if gender_filter:
+        drivers = drivers.filter(gender=gender_filter)
+    if status_filter:
+        drivers = drivers.filter(driver_status=status_filter)
 
     for driver in drivers:
         current_trip = (
@@ -314,11 +320,24 @@ def _get_driver_rows():
 
 def driver_dashboard(request):
     selected_driver_id = request.GET.get('driver')
-    driver_rows = _get_driver_rows()
+    gender_filter = request.GET.get('gender_filter', '')
+    status_filter = request.GET.get('status_filter', '')
+
+    driver_rows = _get_driver_rows(
+        gender_filter=gender_filter or None,
+        status_filter=status_filter or None,
+    )
 
     selected_driver = driver_rows[0]['driver'] if driver_rows else None
     if selected_driver_id:
         selected_driver = get_object_or_404(Driver, id=selected_driver_id)
+
+    filter_params = []
+    if gender_filter:
+        filter_params.append(f'gender_filter={gender_filter}')
+    if status_filter:
+        filter_params.append(f'status_filter={status_filter}')
+    filter_query = '&'.join(filter_params)
 
     context = {
         'driver_rows': driver_rows,
@@ -328,13 +347,21 @@ def driver_dashboard(request):
         'on_route_drivers': Driver.objects.filter(driver_status='ON_ROUTE').count(),
         'off_duty_drivers': Driver.objects.filter(driver_status='OFF_DUTY').count(),
         'module_buttons': _module_buttons('drivers'),
+        'gender_filter': gender_filter,
+        'status_filter': status_filter,
+        'filter_query': filter_query,
     }
     return render(request, 'core/driver_dashboard.html', context)
 
 
-def _get_conductor_rows():
+def _get_conductor_rows(gender_filter=None, status_filter=None):
     rows = []
     conductors = Conductor.objects.order_by('id')
+
+    if gender_filter:
+        conductors = conductors.filter(c_gender=gender_filter)
+    if status_filter:
+        conductors = conductors.filter(conductor_status=status_filter)
 
     for conductor in conductors:
         current_trip = (
@@ -380,11 +407,24 @@ def _get_conductor_rows():
 
 def conductor_dashboard(request):
     selected_conductor_id = request.GET.get('conductor')
-    conductor_rows = _get_conductor_rows()
+    gender_filter = request.GET.get('gender_filter', '')
+    status_filter = request.GET.get('status_filter', '')
+
+    conductor_rows = _get_conductor_rows(
+        gender_filter=gender_filter or None,
+        status_filter=status_filter or None,
+    )
 
     selected_conductor = conductor_rows[0]['conductor'] if conductor_rows else None
     if selected_conductor_id:
         selected_conductor = get_object_or_404(Conductor, id=selected_conductor_id)
+
+    filter_params = []
+    if gender_filter:
+        filter_params.append(f'gender_filter={gender_filter}')
+    if status_filter:
+        filter_params.append(f'status_filter={status_filter}')
+    filter_query = '&'.join(filter_params)
 
     context = {
         'conductor_rows': conductor_rows,
@@ -394,6 +434,9 @@ def conductor_dashboard(request):
         'on_duty_conductors': Conductor.objects.filter(conductor_status='ON_DUTY').count(),
         'off_duty_conductors': Conductor.objects.filter(conductor_status='OFF_DUTY').count(),
         'module_buttons': _module_buttons('conductors'),
+        'gender_filter': gender_filter,
+        'status_filter': status_filter,
+        'filter_query': filter_query,
     }
     return render(request, 'core/conductor_dashboard.html', context)
 

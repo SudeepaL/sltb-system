@@ -23,6 +23,30 @@
 <main class="dashboard-grid">
     <section class="bus-table-panel shadow-sm">
         <h2 class="panel-title"><strong>Current Conductor Activity</strong></h2>
+        <form method="get" class="bus-filters">
+            <input type="hidden" name="conductor" value="{% if selected_conductor %}{{ selected_conductor.id }}{% endif %}">
+            <div class="filter-item">
+                <label for="genderFilter">Gender</label>
+                <select id="genderFilter" name="gender_filter" class="form-select form-select-sm">
+                    <option value="">All genders</option>
+                    <option value="MALE" {% if gender_filter == 'MALE' %}selected{% endif %}>Male</option>
+                    <option value="FEMALE" {% if gender_filter == 'FEMALE' %}selected{% endif %}>Female</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label for="statusFilter">Current Status</label>
+                <select id="statusFilter" name="status_filter" class="form-select form-select-sm">
+                    <option value="">All statuses</option>
+                    <option value="AVAILABLE" {% if status_filter == 'AVAILABLE' %}selected{% endif %}>Available</option>
+                    <option value="ON_DUTY" {% if status_filter == 'ON_DUTY' %}selected{% endif %}>On Duty</option>
+                    <option value="OFF_DUTY" {% if status_filter == 'OFF_DUTY' %}selected{% endif %}>Off Duty</option>
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="manage-btn filter-btn">Search</button>
+                <a href="{% url 'conductor_dashboard' %}" class="delete-btn filter-btn">Clear</a>
+            </div>
+        </form>
         <table class="table table-hover align-middle mb-0">
             <thead>
                 <tr>
@@ -37,7 +61,7 @@
             <tbody>
                 {% for row in conductor_rows %}
                 <tr class="{% if selected_conductor and selected_conductor.id == row.conductor.id %}active-row{% endif %}">
-                    <td><a href="?conductor={{ row.conductor.id }}" class="bus-code-link">{{ row.conductor.id }}</a></td>
+                    <td><a href="?conductor={{ row.conductor.id }}{% if filter_query %}&{{ filter_query }}{% endif %}" class="bus-code-link">{{ row.conductor.id }}</a></td>
                     <td>{{ row.conductor.conductor_name }}</td>
                     <td>{{ row.conductor.get_conductor_status_display }}</td>
                     <td>{{ row.current_trip }}</td>
