@@ -894,15 +894,43 @@ def manage_route_stops(request, route_id):
 def timetable_dashboard(request):
     if request.method == 'POST' and 'delete_timetable' in request.POST:
         if not _has_access(request, 'view_timetable', required='full'):
-             return HttpResponseForbidden('You have view-only access for timetables.')
+            return HttpResponseForbidden('You have view-only access for timetables.')
         timetable_id = request.POST.get('timetable_id')
         timetable = get_object_or_404(TimeTable, id=timetable_id)
         timetable.delete()
         return redirect('timetable_dashboard')
 
-    timetables = TimeTable.objects.select_related('route').order_by(
-        'route__route_number', 'day_of_week', 'departure_time'
-    )
+    route_filter = (request.GET.get('route_filter') or '').strip()
+    day_filter = (request.GET.get('day_filter') or '').strip().lower()
+    direction_filter = (request.GET.get('direction_filter') or '').strip().upper()
+    departure_band_filter = (request.GET.get('departure_band_filter') or '').strip().lower()
+    arrival_band_filter = (request.GET.get('arrival_band_filter') or '').strip().lower()
+
+    timetables = TimeTable.objects.select_related('route')
+
+    if route_filter:
+        timetables = timetables.filter(route__route_number__icontains=route_filter)
+    if day_filter:
+        timetables = timetables.filter(day_of_week=day_filter)
+    if direction_filter:
+        timetables = timetables.filter(direction=direction_filter)
+
+    time_band_ranges = {
+        'morning': ('04:00', '11:59'),
+        'afternoon': ('12:00', '15:59'),
+        'evening': ('16:00', '19:29'),
+        'night': ('19:30', '23:59'),
+        'midnight': ('00:00', '03:59'),
+    }
+
+    if departure_band_filter in time_band_ranges:
+        start_time, end_time = time_band_ranges[departure_band_filter]
+        timetables = timetables.filter(departure_time__range=(start_time, end_time))
+    if arrival_band_filter in time_band_ranges:
+        start_time, end_time = time_band_ranges[arrival_band_filter]
+        timetables = timetables.filter(arrival_time__range=(start_time, end_time))
+
+    timetables = timetables.order_by('route__route_number', 'day_of_week', 'departure_time')
     routes_covered = timetables.values('route').distinct().count()
 
     context = {
@@ -911,6 +939,11 @@ def timetable_dashboard(request):
         'outbound_count': timetables.filter(direction='OUTBOUND').count(),
         'return_count': timetables.filter(direction='RETURN').count(),
         'routes_count': routes_covered,
+        'route_filter': route_filter,
+        'day_filter': day_filter,
+        'direction_filter': direction_filter,
+        'departure_band_filter': departure_band_filter,
+        'arrival_band_filter': arrival_band_filter,
         'module_buttons': _module_buttons(request, 'view_timetable'),
         'can_manage_timetables': _has_access(request, 'view_timetable', required='full'),
     }

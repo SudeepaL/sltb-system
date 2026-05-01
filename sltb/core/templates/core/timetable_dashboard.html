@@ -38,6 +38,61 @@
             <h2>Timetables</h2>
         </div>
 
+         <form method="get" class="bus-filters" style="margin-bottom: 14px;">
+            <div class="filter-item route-item">
+                <label for="routeFilter">Route Number</label>
+                <input id="routeFilter" type="text" name="route_filter" value="{{ route_filter }}" class="form-control form-control-sm" placeholder="e.g. 138">
+            </div>
+            <div class="filter-item">
+                <label for="departureBandFilter">Departure Time</label>
+                <select id="departureBandFilter" name="departure_band_filter" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <option value="morning" {% if departure_band_filter == 'morning' %}selected{% endif %}>Morning (04:00-11:59)</option>
+                    <option value="afternoon" {% if departure_band_filter == 'afternoon' %}selected{% endif %}>Afternoon (12:00-15:59)</option>
+                    <option value="evening" {% if departure_band_filter == 'evening' %}selected{% endif %}>Evening (16:00-19:29)</option>
+                    <option value="night" {% if departure_band_filter == 'night' %}selected{% endif %}>Night (19:30-23:59)</option>
+                    <option value="midnight" {% if departure_band_filter == 'midnight' %}selected{% endif %}>Midnight (00:00-03:59)</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label for="arrivalBandFilter">Arrival Time</label>
+                <select id="arrivalBandFilter" name="arrival_band_filter" class="form-select form-select-sm">
+                    <option value="">All</option>
+                    <option value="morning" {% if arrival_band_filter == 'morning' %}selected{% endif %}>Morning (04:00-11:59)</option>
+                    <option value="afternoon" {% if arrival_band_filter == 'afternoon' %}selected{% endif %}>Afternoon (12:00-15:59)</option>
+                    <option value="evening" {% if arrival_band_filter == 'evening' %}selected{% endif %}>Evening (16:00-19:29)</option>
+                    <option value="night" {% if arrival_band_filter == 'night' %}selected{% endif %}>Night (19:30-23:59)</option>
+                    <option value="midnight" {% if arrival_band_filter == 'midnight' %}selected{% endif %}>Midnight (00:00-03:59)</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label for="dayFilter">Day</label>
+                <select id="dayFilter" name="day_filter" class="form-select form-select-sm">
+                    <option value="">All days</option>
+                    <option value="daily" {% if day_filter == 'daily' %}selected{% endif %}>Daily</option>
+                    <option value="monday" {% if day_filter == 'monday' %}selected{% endif %}>Monday</option>
+                    <option value="tuesday" {% if day_filter == 'tuesday' %}selected{% endif %}>Tuesday</option>
+                    <option value="wednesday" {% if day_filter == 'wednesday' %}selected{% endif %}>Wednesday</option>
+                    <option value="thursday" {% if day_filter == 'thursday' %}selected{% endif %}>Thursday</option>
+                    <option value="friday" {% if day_filter == 'friday' %}selected{% endif %}>Friday</option>
+                    <option value="saturday" {% if day_filter == 'saturday' %}selected{% endif %}>Saturday</option>
+                    <option value="sunday" {% if day_filter == 'sunday' %}selected{% endif %}>Sunday</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label for="directionFilter">Direction</label>
+                <select id="directionFilter" name="direction_filter" class="form-select form-select-sm">
+                    <option value="">All directions</option>
+                    <option value="OUTBOUND" {% if direction_filter == 'OUTBOUND' %}selected{% endif %}>Outbound</option>
+                    <option value="RETURN" {% if direction_filter == 'RETURN' %}selected{% endif %}>Return</option>
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="manage-btn filter-btn">Search</button>
+                <a href="{% url 'timetable_dashboard' %}" class="delete-btn filter-btn">Clear</a>
+            </div>
+        </form>
+
         <table class="table table-hover align-middle mb-0" id="timetableTable">
             <thead>
                 <tr>
