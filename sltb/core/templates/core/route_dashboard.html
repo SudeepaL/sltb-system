@@ -7,6 +7,128 @@
     <title>Route Management Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+    .logout-fixed {
+        position: fixed; bottom: 22px; left: 22px; z-index: 999;
+        background: #fff; border: 1.5px solid #e2e6ef; border-radius: 10px;
+        padding: 10px 18px; font-size: 14px; font-weight: 700; color: #991b1b;
+        text-decoration: none; box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+        transition: background 0.18s, color 0.18s, border-color 0.18s;
+        display: flex; align-items: center; gap: 7px;
+    }
+    .logout-fixed:hover { background: #fee2e2; border-color: #fca5a5; color: #7f1d1d; }
+
+    /* ── Two-column layout ───────────────────────────────────── */
+    .routes-map-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        align-items: start;
+    }
+    @media (max-width: 900px) {
+        .routes-map-layout { grid-template-columns: 1fr; }
+    }
+
+    /* ── Map panel ───────────────────────────────────────────── */
+    .map-panel {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        overflow: hidden;
+        position: sticky;
+        top: 20px;
+    }
+    .map-panel-header {
+        padding: 14px 20px 10px;
+        border-bottom: 1px solid #e8edf5;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+    .map-panel-title {
+        font-size: 15px;
+        font-weight: 700;
+        color: #1e3a5f;
+        margin: 0;
+    }
+    .map-route-badge {
+        background: #0a4db2;
+        color: #fff;
+        border-radius: 6px;
+        padding: 3px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    #routeMap {
+        width: 100%;
+        height: 460px;
+        background: #eef2f7;
+    }
+    .map-placeholder {
+        height: 460px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #8096b4;
+        gap: 12px;
+        font-size: 14px;
+    }
+    .map-placeholder svg { opacity: 0.4; }
+    .map-stop-list {
+        padding: 10px 16px 14px;
+        max-height: 180px;
+        overflow-y: auto;
+        border-top: 1px solid #e8edf5;
+        font-size: 13px;
+    }
+    .map-stop-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 0;
+        border-bottom: 1px solid #f0f4f8;
+    }
+    .map-stop-item:last-child { border-bottom: none; }
+    .stop-dot {
+        width: 10px; height: 10px; border-radius: 50%;
+        flex-shrink: 0;
+        background: #4a90d9;
+        border: 2px solid #fff;
+        box-shadow: 0 0 0 2px #4a90d9;
+    }
+    .stop-dot.start { background: #16a34a; box-shadow: 0 0 0 2px #16a34a; }
+    .stop-dot.end   { background: #dc2626; box-shadow: 0 0 0 2px #dc2626; }
+    .map-loading {
+        display: none;
+        height: 460px;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 12px;
+        color: #0a4db2;
+        font-size: 14px;
+    }
+    .spinner {
+        width: 36px; height: 36px;
+        border: 3px solid #dce8fb;
+        border-top-color: #0a4db2;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Route table tweaks ──────────────────────────────────── */
+    .route-row { cursor: pointer; transition: background 0.12s; }
+    .route-row.active-route td { background: #dce8fb !important; }
+    .route-row:hover td { background: #f0f4fb; }
+    </style>
 </head>
 <body>
 <header class="top-area">
@@ -23,50 +145,268 @@
 <main class="dashboard-grid" style="grid-template-columns: 1fr;">
     <section class="bus-table-panel shadow-sm" style="max-height: none;">
         <h2 class="panel-title"><strong>Route Management</strong></h2>
-        <table class="table table-hover align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>Route Number</th>
-                    <th>Terminus (Start)</th>
-                    <th>Terminus (End)</th>
-                    <th>Distance (KM)</th>
-                    <th>Estimated Duration</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for route in routes %}
-                <tr class="route-row" data-href="{% url 'manage_route_stops' route.id %}">
-                    <td><a href="{% url 'manage_route_stops' route.id %}" class="bus-code-link">{{ route.route_number }}</a></td>
-                    <td>{{ route.start_location }}</td>
-                    <td>{{ route.end_location }}</td>
-                    <td>{{ route.distance|default:'-' }}</td>
-                    <td>{{ route.estimated_duration }}</td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="5">No routes available.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <div class="table-footer">
-            <a href="{% url 'add_route' %}" class="manage-btn">Add a Route</a>
+
+        <div class="routes-map-layout">
+
+            <!-- ── Left: route table ─────────────────────────── -->
+            <div>
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Route Number</th>
+                            <th>Terminus (Start)</th>
+                            <th>Terminus (End)</th>
+                            <th>Distance (KM)</th>
+                            <th>Estimated Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for route in routes %}
+                        <tr class="route-row"
+                            data-href="{% url 'manage_route_stops' route.id %}"
+                            data-route-id="{{ route.id }}"
+                            data-route-number="{{ route.route_number }}"
+                            data-start="{{ route.start_location }}"
+                            data-end="{{ route.end_location }}">
+                            <td><a href="{% url 'manage_route_stops' route.id %}" class="bus-code-link">{{ route.route_number }}</a></td>
+                            <td>{{ route.start_location }}</td>
+                            <td>{{ route.end_location }}</td>
+                            <td>{{ route.distance|default:'-' }}</td>
+                            <td>{{ route.estimated_duration }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5">No routes available.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                {% if can_manage_routes %}
+                <div class="table-footer">
+                    <a href="{% url 'add_route' %}" class="manage-btn">Add a Route</a>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- ── Right: map panel ──────────────────────────── -->
+            <div class="map-panel">
+                <div class="map-panel-header">
+                    <p class="map-panel-title">Route Map</p>
+                    <span class="map-route-badge" id="mapRouteBadge" style="display:none;"></span>
+                </div>
+
+                <!-- Placeholder shown before any route is selected -->
+                <div class="map-placeholder" id="mapPlaceholder">
+                    <svg width="52" height="52" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4"
+                            d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 16l4.553 2.276A1 1 0 0021 24.382V8.618a1 1 0 00-.553-.894L15 5m0 18V5m0 0L9 7" />
+                    </svg>
+                    <span id="mapPlaceholderText">Click a route to view it on the map</span>
+                </div>
+
+                <!-- Loading spinner -->
+                <div class="map-loading" id="mapLoading">
+                    <div class="spinner"></div>
+                    <span>Plotting route&hellip;</span>
+                </div>
+
+                <!-- Leaflet map container (hidden until a route is selected) -->
+                <div id="routeMap" style="display:none;"></div>
+
+                <!-- Stop list below the map -->
+                <div class="map-stop-list" id="mapStopList" style="display:none;"></div>
+            </div>
+
         </div>
     </section>
 </main>
 
-<script>
-    document.querySelectorAll('.route-row').forEach((row) => {
-        const link = row.querySelector('.bus-code-link');
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-        row.addEventListener('click', (event) => {
-            if (event.target.tagName.toLowerCase() === 'a') return;
-            window.location.href = row.dataset.href;
+<script>
+// ── OSRM public demo server ───────────────────────────────────────────────────
+const OSRM_BASE = 'https://router.project-osrm.org/route/v1/driving/';
+
+let map          = null;
+let routeLayer   = null;
+let markersGroup = null;
+let activeRow    = null;
+
+// ── Initialise Leaflet map (once) ────────────────────────────────────────────
+function initMap() {
+    if (map) return;
+    document.getElementById('routeMap').style.display = 'block';
+    map = L.map('routeMap');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+    }).addTo(map);
+    markersGroup = L.layerGroup().addTo(map);
+}
+
+// ── Custom circular marker icon ───────────────────────────────────────────────
+function makeMarkerIcon(color, label) {
+    return L.divIcon({
+        className: '',
+        html: `<div style="
+            background:${color};
+            color:#fff;
+            border-radius:50%;
+            width:26px;height:26px;
+            display:flex;align-items:center;justify-content:center;
+            font-size:10px;font-weight:700;
+            border:2px solid #fff;
+            box-shadow:0 1px 4px rgba(0,0,0,0.35);
+        ">${label}</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+        popupAnchor: [0, -15],
+    });
+}
+
+// ── Call OSRM and return GeoJSON geometry ─────────────────────────────────────
+async function fetchOSRMRoute(stops) {
+    const coords = stops.map(s => `${s.lng},${s.lat}`).join(';');
+    const url    = `${OSRM_BASE}${coords}?overview=full&geometries=geojson&steps=false`;
+    const resp   = await fetch(url);
+    if (!resp.ok) throw new Error('OSRM request failed');
+    const data = await resp.json();
+    if (data.code !== 'Ok' || !data.routes.length) throw new Error('No route found');
+    return data.routes[0].geometry; // GeoJSON LineString
+}
+
+// ── Render ordered stop list below the map ────────────────────────────────────
+function renderStopList(stops) {
+    const container = document.getElementById('mapStopList');
+    if (!stops.length) { container.style.display = 'none'; return; }
+
+    let html = '<div style="font-weight:700;color:#1e3a5f;margin-bottom:6px;">Stops in order</div>';
+    stops.forEach((s, i) => {
+        const cls = i === 0 ? 'start' : (i === stops.length - 1 ? 'end' : '');
+        html += `<div class="map-stop-item">
+            <span class="stop-dot ${cls}"></span>
+            <span>${i + 1}. ${s.name}</span>
+            <span style="margin-left:auto;color:#8096b4;font-size:11px;">
+                ${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}
+            </span>
+        </div>`;
+    });
+    container.innerHTML = html;
+    container.style.display = 'block';
+}
+
+// ── Main: load a route onto the map ──────────────────────────────────────────
+async function loadRoute(routeId, routeNumber) {
+    // UI: show spinner, hide everything else
+    document.getElementById('mapPlaceholder').style.display = 'none';
+    document.getElementById('mapLoading').style.display    = 'flex';
+    document.getElementById('routeMap').style.display      = 'none';
+    document.getElementById('mapStopList').style.display   = 'none';
+
+    const badge = document.getElementById('mapRouteBadge');
+    badge.textContent    = `Route ${routeNumber}`;
+    badge.style.display  = 'inline-block';
+
+    try {
+        // 1. Fetch stops from our Django API endpoint
+        const resp = await fetch(`/routes/${routeId}/map-data/`);
+        if (!resp.ok) throw new Error('Failed to load route data');
+        const data  = await resp.json();
+        const stops = data.stops; // [{name, lat, lng, order}, ...]
+
+        if (!stops.length) {
+            document.getElementById('mapLoading').style.display  = 'none';
+            document.getElementById('mapPlaceholder').style.display = 'flex';
+            document.getElementById('mapPlaceholderText').textContent =
+                'No stops with coordinates saved for this route.';
+            return;
+        }
+
+        // 2. Show map and init Leaflet (first time only)
+        document.getElementById('mapLoading').style.display = 'none';
+        document.getElementById('routeMap').style.display   = 'block';
+        initMap();
+
+        // 3. Clear previous markers / route
+        markersGroup.clearLayers();
+        if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+
+        // 4. Add stop markers
+        stops.forEach((stop, i) => {
+            const isFirst = i === 0;
+            const isLast  = i === stops.length - 1;
+            const color   = isFirst ? '#16a34a' : isLast ? '#dc2626' : '#0a4db2';
+            const label   = isFirst ? 'S' : isLast ? 'E' : String(i + 1);
+            const marker  = L.marker([stop.lat, stop.lng], { icon: makeMarkerIcon(color, label) });
+            marker.bindPopup(`<b>${stop.name}</b><br>Stop ${i + 1}`);
+            markersGroup.addLayer(marker);
         });
 
-        link.addEventListener('mouseenter', () => row.classList.add('hover-row'));
-        link.addEventListener('mouseleave', () => row.classList.remove('hover-row'));
+        // 5. Draw road-following route via OSRM
+        try {
+            const geometry = await fetchOSRMRoute(stops);
+            routeLayer = L.geoJSON(geometry, {
+                style: { color: '#0a4db2', weight: 5, opacity: 0.85 }
+            }).addTo(map);
+            map.fitBounds(routeLayer.getBounds(), { padding: [36, 36] });
+        } catch (osrmErr) {
+            // Fallback: straight dashed polyline if OSRM is unavailable
+            console.warn('OSRM unavailable, using straight-line fallback:', osrmErr);
+            const latlngs = stops.map(s => [s.lat, s.lng]);
+            routeLayer = L.polyline(latlngs, {
+                color: '#0a4db2', weight: 4, opacity: 0.75, dashArray: '8 6'
+            }).addTo(map);
+            map.fitBounds(routeLayer.getBounds(), { padding: [36, 36] });
+        }
+
+        // 6. Render stop list
+        renderStopList(stops);
+
+        // 7. Force Leaflet size recalculation (map was hidden on page load)
+        setTimeout(() => map.invalidateSize(), 120);
+
+    } catch (err) {
+        console.error(err);
+        document.getElementById('mapLoading').style.display     = 'none';
+        document.getElementById('mapPlaceholder').style.display = 'flex';
+        document.getElementById('mapPlaceholderText').textContent =
+            'Could not load route data. Please try again.';
+    }
+}
+
+// ── Attach click handlers to route rows ───────────────────────────────────────
+document.querySelectorAll('.route-row').forEach((row) => {
+    const link = row.querySelector('.bus-code-link');
+
+    link.addEventListener('mouseenter', () => row.classList.add('hover-row'));
+    link.addEventListener('mouseleave', () => row.classList.remove('hover-row'));
+
+    row.addEventListener('click', (event) => {
+        // If the user clicked directly on the anchor, let the browser navigate
+        if (event.target.tagName.toLowerCase() === 'a') return;
+
+        // Otherwise: load the route on the map in-page
+        event.preventDefault();
+
+        if (activeRow) activeRow.classList.remove('active-route');
+        activeRow = row;
+        row.classList.add('active-route');
+
+        loadRoute(row.dataset.routeId, row.dataset.routeNumber);
     });
+});
 </script>
+
+{# ── Fixed logout button ───────────────────────── #}
+<a href="{% url 'logout' %}" class="logout-fixed">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+    </svg>
+    Logout
+</a>
 </body>
 </html>

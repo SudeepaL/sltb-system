@@ -223,6 +223,18 @@
         /* Trigger text */
         .trigger-placeholder { color: #888; }
     </style>
+
+    <style>
+    .logout-fixed {
+        position: fixed; bottom: 22px; left: 22px; z-index: 999;
+        background: #fff; border: 1.5px solid #e2e6ef; border-radius: 10px;
+        padding: 10px 18px; font-size: 14px; font-weight: 700; color: #991b1b;
+        text-decoration: none; box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+        transition: background 0.18s, color 0.18s, border-color 0.18s;
+        display: flex; align-items: center; gap: 7px;
+    }
+    .logout-fixed:hover { background: #fee2e2; border-color: #fca5a5; color: #7f1d1d; }
+    </style>
 </head>
 <body>
 <header class="top-area">
@@ -729,5 +741,15 @@ async function onTimetableDateChange() {
 timetableSelect.addEventListener('change', onTimetableDateChange);
 dateInput.addEventListener('change', onTimetableDateChange);
 </script>
+
+{# ── Fixed logout button ───────────────────────── #}
+<a href="{% url 'logout' %}" class="logout-fixed">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+    </svg>
+    Logout
+</a>
 </body>
 </html>

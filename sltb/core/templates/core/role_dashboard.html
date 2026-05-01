@@ -1,0 +1,521 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — {{ display_role }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
+    <style>
+        /* ── Dashboard layout ─────────────────────────────── */
+        .dash-wrap {
+            max-width: 1100px;
+            margin: 28px auto;
+            padding: 0 20px 80px;
+        }
+        .dash-heading {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--blue-dark);
+            margin-bottom: 4px;
+            letter-spacing: -0.01em;
+        }
+        .dash-sub {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+        /* ── Stat cards ───────────────────────────────────── */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 18px 20px;
+        }
+        .stat-card .sc-label {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+        .stat-card .sc-value {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--blue-dark);
+            line-height: 1;
+        }
+        .stat-card .sc-detail {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+        .stat-card.accent-green  { border-left: 4px solid #16a34a; }
+        .stat-card.accent-blue   { border-left: 4px solid var(--blue); }
+        .stat-card.accent-amber  { border-left: 4px solid #d97706; }
+        .stat-card.accent-red    { border-left: 4px solid #dc2626; }
+        /* ── Panels ───────────────────────────────────────── */
+        .dash-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 20px 22px;
+            margin-bottom: 20px;
+        }
+        .dash-panel-title {
+            font-size: 16px;
+            font-weight: 800;
+            color: var(--blue-dark);
+            margin-bottom: 14px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--blue-light);
+        }
+        /* ── Fuel bar ─────────────────────────────────────── */
+        .fuel-track {
+            background: var(--border);
+            border-radius: 6px;
+            height: 10px;
+            overflow: hidden;
+            margin: 8px 0 4px;
+        }
+        .fuel-fill {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.6s ease;
+        }
+        .fuel-fill.ok   { background: #16a34a; }
+        .fuel-fill.warn { background: #d97706; }
+        .fuel-fill.low  { background: #dc2626; }
+        /* ── Alert banners ────────────────────────────────── */
+        .dash-alert {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .dash-alert.warn  { background: #fef9c3; border: 1px solid #fde047; color: #854d0e; }
+        .dash-alert.danger{ background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; }
+        .dash-alert.info  { background: #dbeafe; border: 1px solid #93c5fd; color: #1e40af; }
+        /* ── Two-column ───────────────────────────────────── */
+        .dash-two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            margin-bottom: 20px;
+        }
+        /* ── Table inside panels ─────────────────────────── */
+        .dash-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 14px;
+        }
+        .dash-table th {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            padding: 6px 8px;
+            border-bottom: 1.5px solid var(--border);
+        }
+        .dash-table td {
+            padding: 9px 8px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+            vertical-align: middle;
+        }
+        .dash-table tr:last-child td { border-bottom: none; }
+        /* ── Logout button (fixed bottom-left) ───────────── */
+        .logout-fixed {
+            position: fixed;
+            bottom: 22px;
+            left: 22px;
+            z-index: 999;
+            background: #fff;
+            border: 1.5px solid #e2e6ef;
+            border-radius: 10px;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: 700;
+            color: #991b1b;
+            text-decoration: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+            transition: background 0.18s, color 0.18s, border-color 0.18s;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+        .logout-fixed:hover {
+            background: #fee2e2;
+            border-color: #fca5a5;
+            color: #7f1d1d;
+        }
+        @media (max-width: 600px) {
+            .dash-two-col { grid-template-columns: 1fr; }
+            .stat-grid    { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<header class="top-area">
+    <img src="{% static 'core/logo.jpg' %}" alt="SLTB Logo" class="logo">
+    <nav class="module-nav">
+        <div class="module-buttons">
+            {% for item in module_buttons %}
+                <a href="{{ item.url }}" class="module-btn {% if item.is_active %}active{% endif %}">{{ item.label }}</a>
+            {% endfor %}
+        </div>
+    </nav>
+</header>
+
+<div class="dash-wrap">
+
+    <h1 class="dash-heading">
+        {% if role == 'admin' %}Admin Overview
+        {% elif role == 'route_manager' %}Route Manager Overview
+        {% elif role == 'maintenance_manager' %}Maintenance Overview
+        {% endif %}
+    </h1>
+    <p class="dash-sub">Logged in as <strong>{{ display_role }}</strong> &mdash; summary as of today</p>
+
+    {# ════════ ADMIN DASHBOARD ════════ #}
+    {% if role == 'admin' %}
+
+    <div class="stat-grid">
+        <div class="stat-card accent-blue">
+            <div class="sc-label">Total Buses</div>
+            <div class="sc-value">{{ total_buses }}</div>
+            <div class="sc-detail">{{ avail_buses }} available &middot; {{ onroute_buses }} on route &middot; {{ maint_buses }} in maintenance</div>
+        </div>
+        <div class="stat-card accent-green">
+            <div class="sc-label">Trips Today</div>
+            <div class="sc-value">{{ trips_today }}</div>
+            <div class="sc-detail">{{ completed_trips }} completed &middot; {{ ongoing_trips }} ongoing &middot; {{ delayed_trips }} delayed</div>
+        </div>
+        <div class="stat-card accent-blue">
+            <div class="sc-label">Staff On Duty</div>
+            <div class="sc-value">{{ drivers_on_route|add:conductors_on_duty }}</div>
+            <div class="sc-detail">{{ drivers_on_route }} drivers &middot; {{ conductors_on_duty }} conductors</div>
+        </div>
+        <div class="stat-card accent-green">
+            <div class="sc-label">Revenue Today</div>
+            <div class="sc-value">LKR {{ revenue_today|floatformat:0 }}</div>
+            <div class="sc-detail">Simulated across {{ completed_trips }} completed trips</div>
+        </div>
+    </div>
+
+    <div class="dash-two-col">
+        <div class="dash-panel">
+            <div class="dash-panel-title">Depot Fuel Level</div>
+            <div style="font-size:22px;font-weight:800;color:var(--blue-dark);">
+                {{ tank.current_level_liters|floatformat:0 }} L
+                <span style="font-size:14px;font-weight:400;color:var(--text-muted)">/ {{ tank.max_capacity_liters|floatformat:0 }} L</span>
+            </div>
+            <div class="fuel-track">
+                <div class="fuel-fill {% if tank_pct >= 40 %}ok{% elif tank_pct >= 20 %}warn{% else %}low{% endif %}"
+                     style="width:{{ tank_pct }}%;"></div>
+            </div>
+            <div style="font-size:13px;color:var(--text-muted);">{{ tank_pct }}% full
+                {% if tank.next_refill_date %}&middot; Next refill: {{ tank.next_refill_date }}{% endif %}
+            </div>
+        </div>
+
+        <div class="dash-panel">
+            <div class="dash-panel-title">Alerts</div>
+            {% if delayed_trips > 0 %}
+            <div class="dash-alert warn">
+                <span>&#9888;</span> {{ delayed_trips }} trip{{ delayed_trips|pluralize }} currently delayed
+            </div>
+            {% endif %}
+            {% if active_maint > 0 %}
+            <div class="dash-alert warn">
+                <span>&#9888;</span> {{ active_maint }} bus{{ active_maint|pluralize:"es" }} in active maintenance
+            </div>
+            {% endif %}
+            {% if overdue_buses > 0 %}
+            <div class="dash-alert danger">
+                <span>&#9888;</span> {{ overdue_buses }} bus{{ overdue_buses|pluralize:"es" }} overdue for service
+            </div>
+            {% endif %}
+            {% if delayed_trips == 0 and active_maint == 0 and overdue_buses == 0 %}
+            <div class="dash-alert info"><span>&#10003;</span> No alerts — all systems normal</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="dash-panel">
+        <div class="dash-panel-title">Recent Trips Today</div>
+        {% if recent_trips %}
+        <table class="dash-table">
+            <thead>
+                <tr>
+                    <th>Bus</th>
+                    <th>Route</th>
+                    <th>Direction</th>
+                    <th>Departure</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for trip in recent_trips %}
+                <tr>
+                    <td><strong>{{ trip.schedule.bus.bus_code }}</strong></td>
+                    <td>{{ trip.schedule.timetable.route.route_number }} &mdash; {{ trip.schedule.timetable.route.start_location }} &rarr; {{ trip.schedule.timetable.route.end_location }}</td>
+                    <td>{{ trip.schedule.timetable.get_direction_display }}</td>
+                    <td>{{ trip.schedule.timetable.departure_time }}</td>
+                    <td>
+                        {% if trip.t_status == 'COMPLETED' %}<span class="badge-status badge-completed">Completed</span>
+                        {% elif trip.t_status == 'ONGOING' %}<span class="badge-status badge-ongoing">Ongoing</span>
+                        {% elif trip.t_status == 'DELAYED' %}<span class="badge-status badge-delayed">Delayed</span>
+                        {% else %}<span class="badge-status badge-scheduled">Not started</span>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:var(--text-muted);font-size:14px;">No trips recorded for today yet.</p>
+        {% endif %}
+    </div>
+
+    <div class="dash-panel">
+        <div class="dash-panel-title" style="display:flex;align-items:center;justify-content:space-between;">
+            <span>🕐 Today's Attendance</span>
+            <a href="{% url 'attendance_dashboard' %}" style="font-size:13px;font-weight:700;color:var(--blue-dark);text-decoration:none;">View All →</a>
+        </div>
+        {% if attendance_today %}
+        <table class="dash-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Clock-In</th>
+                    <th>Clock-Out</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rec in attendance_today %}
+                <tr>
+                    <td><strong>{{ rec.staff_name }}</strong></td>
+                    <td>{{ rec.staff_type }}</td>
+                    <td>
+                        {% if rec.status == 'AVAILABLE' %}
+                            <span class="badge-status badge-ongoing">Available</span>
+                        {% else %}
+                            <span class="badge-status" style="background:#f3f4f6;color:#6b7280;">Off Duty</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:13px;">{% if rec.clock_in_time %}{{ rec.clock_in_time|time:"H:i" }}{% else %}—{% endif %}</td>
+                    <td style="font-size:13px;">{% if rec.clock_out_time %}{{ rec.clock_out_time|time:"H:i" }}{% else %}—{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:var(--text-muted);font-size:14px;">No staff have clocked in today yet.</p>
+        {% endif %}
+    </div>
+    {% elif role == 'route_manager' %}
+
+    <div class="stat-grid">
+        <div class="stat-card accent-blue">
+            <div class="sc-label">Active Routes</div>
+            <div class="sc-value">{{ total_routes }}</div>
+            <div class="sc-detail">{% if routes_no_tt > 0 %}{{ routes_no_tt }} without timetables{% else %}All have timetables{% endif %}</div>
+        </div>
+        <div class="stat-card accent-blue">
+            <div class="sc-label">Timetables</div>
+            <div class="sc-value">{{ total_tt }}</div>
+            <div class="sc-detail">{{ outbound_tt }} outbound &middot; {{ return_tt }} return</div>
+        </div>
+        <div class="stat-card {% if unassigned_today > 0 %}accent-amber{% else %}accent-green{% endif %}">
+            <div class="sc-label">Schedules Today</div>
+            <div class="sc-value">{{ total_today }}</div>
+            <div class="sc-detail">{{ assigned_today }} assigned &middot; {{ unassigned_today }} unassigned</div>
+        </div>
+    </div>
+
+    {% if routes_no_tt > 0 %}
+    <div class="dash-alert warn">
+        <span>&#9888;</span> {{ routes_no_tt }} route{{ routes_no_tt|pluralize }} have no timetable set up yet
+    </div>
+    {% endif %}
+    {% if unassigned_today > 0 %}
+    <div class="dash-alert danger">
+        <span>&#9888;</span> {{ unassigned_today }} schedule{{ unassigned_today|pluralize }} today are missing a bus, driver, or conductor
+    </div>
+    {% endif %}
+    {% if unassigned_today == 0 and routes_no_tt == 0 %}
+    <div class="dash-alert info"><span>&#10003;</span> All schedules for today are fully assigned</div>
+    {% endif %}
+
+    {% if problem_schedules %}
+    <div class="dash-panel">
+        <div class="dash-panel-title">Schedules Needing Attention Today</div>
+        <table class="dash-table">
+            <thead>
+                <tr>
+                    <th>Route</th>
+                    <th>Direction</th>
+                    <th>Departure</th>
+                    <th>Bus</th>
+                    <th>Driver</th>
+                    <th>Conductor</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in problem_schedules %}
+                <tr>
+                    <td>{{ s.timetable.route.route_number }}</td>
+                    <td>{{ s.timetable.get_direction_display }}</td>
+                    <td>{{ s.timetable.departure_time }}</td>
+                    <td>{% if s.bus %}{{ s.bus.bus_code }}{% else %}<span style="color:#dc2626;font-weight:700;">Missing</span>{% endif %}</td>
+                    <td>{% if s.driver %}{{ s.driver.driver_name }}{% else %}<span style="color:#dc2626;font-weight:700;">Missing</span>{% endif %}</td>
+                    <td>{% if s.conductor %}{{ s.conductor.conductor_name }}{% else %}<span style="color:#dc2626;font-weight:700;">Missing</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <div class="dash-two-col">
+        <div class="dash-panel">
+            <div class="dash-panel-title">Quick Actions</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <a href="{% url 'route_dashboard' %}" class="manage-btn" style="display:inline-block;text-align:center;">Manage Routes</a>
+                <a href="{% url 'timetable_dashboard' %}" class="manage-btn" style="display:inline-block;text-align:center;">Manage Timetables</a>
+                <a href="{% url 'scheduling_dashboard' %}" class="manage-btn" style="display:inline-block;text-align:center;">Manage Schedules</a>
+            </div>
+        </div>
+        <div class="dash-panel">
+            <div class="dash-panel-title">Timetable Breakdown</div>
+            <table class="dash-table">
+                <tr><td>Total timetables</td><td style="font-weight:700;text-align:right;">{{ total_tt }}</td></tr>
+                <tr><td>Outbound</td><td style="font-weight:700;text-align:right;">{{ outbound_tt }}</td></tr>
+                <tr><td>Return</td><td style="font-weight:700;text-align:right;">{{ return_tt }}</td></tr>
+                <tr><td>Routes without timetable</td><td style="font-weight:700;text-align:right;color:{% if routes_no_tt > 0 %}#dc2626{% else %}#16a34a{% endif %};">{{ routes_no_tt }}</td></tr>
+            </table>
+        </div>
+    </div>
+
+    {# ════════ MAINTENANCE MANAGER DASHBOARD ════════ #}
+    {% elif role == 'maintenance_manager' %}
+
+    <div class="stat-grid">
+        <div class="stat-card {% if active_count > 0 %}accent-amber{% else %}accent-green{% endif %}">
+            <div class="sc-label">In Maintenance</div>
+            <div class="sc-value">{{ active_count }}</div>
+            <div class="sc-detail">Active jobs right now</div>
+        </div>
+        <div class="stat-card accent-blue">
+            <div class="sc-label">Completed This Month</div>
+            <div class="sc-value">{{ completed_count }}</div>
+            <div class="sc-detail">{{ month_name }}</div>
+        </div>
+        <div class="stat-card accent-green">
+            <div class="sc-label">Cost This Month</div>
+            <div class="sc-value" style="font-size:20px;">LKR {{ cost_this_month|floatformat:0 }}</div>
+            <div class="sc-detail">Actual costs recorded</div>
+        </div>
+        <div class="stat-card {% if overdue_count > 0 %}accent-red{% else %}accent-green{% endif %}">
+            <div class="sc-label">Overdue for Service</div>
+            <div class="sc-value">{{ overdue_count }}</div>
+            <div class="sc-detail">Exceeded next service mileage</div>
+        </div>
+    </div>
+
+    {% if overdue_count > 0 %}
+    <div class="dash-alert danger">
+        <span>&#9888;</span> {{ overdue_count }} bus{{ overdue_count|pluralize:"es" }} have exceeded their next service due mileage
+    </div>
+    {% endif %}
+    {% if active_count == 0 and overdue_count == 0 %}
+    <div class="dash-alert info"><span>&#10003;</span> No active maintenance jobs and no overdue buses</div>
+    {% endif %}
+
+    <div class="dash-two-col">
+        <div class="dash-panel">
+            <div class="dash-panel-title">Active Maintenance Jobs</div>
+            {% if active_jobs %}
+            <table class="dash-table">
+                <thead>
+                    <tr><th>Bus</th><th>Since</th><th>Est. Completion</th><th>Est. Cost (LKR)</th></tr>
+                </thead>
+                <tbody>
+                    {% for job in active_jobs %}
+                    <tr>
+                        <td><strong>{{ job.bus.bus_code }}</strong></td>
+                        <td>{{ job.service_date }}</td>
+                        <td>{% if job.estimated_maintenance_duration %}{{ job.estimated_maintenance_duration|date:"d M Y" }}{% else %}&mdash;{% endif %}</td>
+                        <td>{% if job.estimated_cost %}{{ job.estimated_cost|floatformat:0 }}{% else %}&mdash;{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color:var(--text-muted);font-size:14px;">No active maintenance jobs.</p>
+            {% endif %}
+        </div>
+
+        <div class="dash-panel">
+            <div class="dash-panel-title">Overdue Buses</div>
+            {% if overdue_buses %}
+            <table class="dash-table">
+                <thead>
+                    <tr><th>Bus Code</th><th>Current Mileage</th></tr>
+                </thead>
+                <tbody>
+                    {% for bus in overdue_buses %}
+                    <tr>
+                        <td><strong style="color:#dc2626;">{{ bus.bus_code }}</strong></td>
+                        <td>{{ bus.mileage }} km</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color:var(--text-muted);font-size:14px;">No buses overdue for service.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="dash-panel" style="text-align:center;padding:20px;">
+        <div class="dash-panel-title" style="text-align:left;">Generate Report</div>
+        <p style="font-size:14px;color:var(--text-muted);margin-bottom:16px;">Download a CSV report of all completed maintenance records.</p>
+        <a href="{% url 'maintenance_report_csv' %}" class="manage-btn">Download Maintenance Report (CSV)</a>
+    </div>
+
+    {% endif %}
+</div>
+
+{# ── Fixed logout button ───────────────────────────────────── #}
+<a href="{% url 'logout' %}" class="logout-fixed">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+    </svg>
+    Logout
+</a>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

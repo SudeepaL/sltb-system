@@ -7,19 +7,22 @@
     <title>Manage Route Stops</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
     <style>
+        /* ── Existing styles (unchanged) ───────────────────── */
         .route-stops-header {
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
             margin-bottom: 0;
         }
-
         .drop-target {
             background: #e7f0ff;
             outline: 2px dashed #0a4db2;
         }
-
         .confirmation-panel {
             margin: 12px 0;
             padding: 12px;
@@ -31,12 +34,10 @@
             justify-content: space-between;
             gap: 10px;
         }
-
         .confirmation-actions {
             display: flex;
             gap: 10px;
         }
-
         .route-stop-actions {
             display: flex;
             align-items: center;
@@ -44,17 +45,91 @@
             gap: 10px;
             flex-wrap: wrap;
         }
-
         .route-stop-actions .form-select {
             width: 260px;
         }
-
         #stopSelector option.create-stop-option {
             font-weight: 700;
         }
-
         tr.start-stop td:first-child,
         tr.end-stop   td:first-child { font-weight: 700; }
+
+        /* ── Logout button ──────────────────────────────────── */
+        .logout-fixed {
+            position: fixed; bottom: 22px; left: 22px; z-index: 999;
+            background: #fff; border: 1.5px solid #e2e6ef; border-radius: 10px;
+            padding: 10px 18px; font-size: 14px; font-weight: 700; color: #991b1b;
+            text-decoration: none; box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+            transition: background 0.18s, color 0.18s, border-color 0.18s;
+            display: flex; align-items: center; gap: 7px;
+        }
+        .logout-fixed:hover { background: #fee2e2; border-color: #fca5a5; color: #7f1d1d; }
+
+        /* ── Map panel ──────────────────────────────────────── */
+        .stop-map-panel {
+            margin-top: 24px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+        }
+        .stop-map-header {
+            padding: 12px 18px;
+            background: #f0f5ff;
+            border-bottom: 1px solid #d9e4f7;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .stop-map-header h3 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 700;
+            color: #1e3a5f;
+        }
+        .map-legend {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font-size: 12px;
+            color: #5a6a85;
+        }
+        .legend-dot {
+            width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+        }
+        #stopRouteMap {
+            width: 100%;
+            height: 420px;
+        }
+        .map-notice {
+            background: #fffbe6;
+            border-top: 1px solid #ffe58f;
+            padding: 7px 18px;
+            font-size: 12px;
+            color: #7c5400;
+            display: none;
+        }
+        .map-spinner-overlay {
+            height: 420px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 12px;
+            color: #0a4db2;
+            font-size: 14px;
+            background: #f7f9fc;
+        }
+        .spinner {
+            width: 32px; height: 32px;
+            border: 3px solid #dce8fb;
+            border-top-color: #0a4db2;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -72,7 +147,7 @@
 <main class="dashboard-grid" style="grid-template-columns: 1fr;">
     <section class="bus-table-panel shadow-sm" style="max-height: none;">
         <div class="route-stops-header">
-            <h2>Route Stops — Route {{ route.route_number }}</h2>
+            <h2>Route Stops &mdash; Route {{ route.route_number }}</h2>
         </div>
 
         <table class="table table-hover align-middle mb-0" id="routeStopsTable">
@@ -90,7 +165,7 @@
                     data-lat="{{ route_stop.stop.latitude }}"
                     data-lng="{{ route_stop.stop.longitude }}"
                     data-name="{{ route_stop.stop.stop_name }}"
-                    draggable="true"
+                    draggable="{% if can_manage_routes %}true{% else %}false{% endif %}"
                     {% if forloop.first %}class="start-stop"{% elif forloop.last %}class="end-stop"{% endif %}>
                     <td>{{ route_stop.stop.stop_name }}</td>
                     <td class="order-cell">{{ route_stop.order }}</td>
@@ -103,6 +178,7 @@
             </tbody>
         </table>
 
+        {% if can_manage_routes %}
         <div class="confirmation-panel" id="confirmationPanel">
             <span><strong>Are you sure you want to save the changes?</strong></span>
             <div class="confirmation-actions">
@@ -110,9 +186,11 @@
                 <button type="button" id="revertChangesBtn" class="delete-btn">Revert changes</button>
             </div>
         </div>
+        {% endif %}
 
         <div class="table-footer">
             <div class="route-stop-actions">
+                {% if can_manage_routes %}
                 <select id="stopSelector" class="form-select">
                     <option value="">Add a stop</option>
                     <option value="__create_stop__" class="create-stop-option" data-create-url="{% url 'add_stop' route.id %}">+ Create a stop</option>
@@ -122,6 +200,7 @@
                 </select>
                 <button type="button" id="deleteStopBtn" class="delete-btn">Delete selected stop</button>
                 <button type="button" id="saveChangesFooterBtn" class="manage-btn">Save Changes</button>
+                {% endif %}
                 <a href="{% url 'route_dashboard' %}" class="module-btn" style="background:#0a4db2;">Back to Routes</a>
             </div>
         </div>
@@ -129,54 +208,95 @@
         <form method="post" id="saveForm" class="mt-3">
             {% csrf_token %}
         </form>
+
+        <!-- ══ OSRM Map Panel ══════════════════════════════════════════════ -->
+        <div class="stop-map-panel">
+            <div class="stop-map-header">
+                <h3>
+                    Route Map &mdash;
+                    <span style="color:#0a4db2;">{{ route.route_number }}</span>
+                    &nbsp;({{ route.start_location }} &rarr; {{ route.end_location }})
+                </h3>
+                <div class="map-legend">
+                    <span style="display:flex;align-items:center;gap:4px;">
+                        <span class="legend-dot" style="background:#16a34a;"></span>Start
+                    </span>
+                    <span style="display:flex;align-items:center;gap:4px;">
+                        <span class="legend-dot" style="background:#dc2626;"></span>End
+                    </span>
+                    <span style="display:flex;align-items:center;gap:4px;">
+                        <span class="legend-dot" style="background:#0a4db2;"></span>Stop
+                    </span>
+                </div>
+            </div>
+
+            <!-- Map or spinner -->
+            <div id="mapSpinnerOverlay" class="map-spinner-overlay">
+                <div class="spinner"></div>
+                <span>Loading map&hellip;</span>
+            </div>
+            <div id="stopRouteMap" style="display:none;"></div>
+            <div class="map-notice" id="mapNotice"></div>
+        </div>
+        <!-- ══ End Map Panel ══════════════════════════════════════════════ -->
+
     </section>
 </main>
 
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <script>
-    const tbody = document.getElementById('routeStopsTbody');
-    const stopSelector = document.getElementById('stopSelector');
-    const confirmationPanel = document.getElementById('confirmationPanel');
-    const saveBtn = document.getElementById('saveChangesBtn');
-    const revertBtn = document.getElementById('revertChangesBtn');
-    const deleteBtn = document.getElementById('deleteStopBtn');
-    const saveForm = document.getElementById('saveForm');
-    let draggedRow = null;
-    let selectedRow = null;
+// ────────────────────────────────────────────────────────────────────────────
+//  STOP MANAGEMENT (original logic, unchanged)
+// ────────────────────────────────────────────────────────────────────────────
+const tbody            = document.getElementById('routeStopsTbody');
+const stopSelector     = document.getElementById('stopSelector');
+const canManageRoutes  = {{ can_manage_routes|yesno:'true,false' }};
+const confirmationPanel= document.getElementById('confirmationPanel');
+const saveBtn          = document.getElementById('saveChangesBtn');
+const revertBtn        = document.getElementById('revertChangesBtn');
+const deleteBtn        = document.getElementById('deleteStopBtn');
+const saveForm         = document.getElementById('saveForm');
+let draggedRow  = null;
+let selectedRow = null;
 
-    const initialRowsMarkup = tbody.innerHTML;
+const initialRowsMarkup = tbody.innerHTML;
 
-    const showConfirmation = () => {
-        confirmationPanel.style.display = 'flex';
-    };
+const showConfirmation = () => { confirmationPanel.style.display = 'flex'; };
 
-    const normalizeRows = () => {
-        const rows = [...tbody.querySelectorAll('tr:not(.empty-row)')];
-        tbody.querySelector('.empty-row')?.remove();
+const normalizeRows = () => {
+    const rows = [...tbody.querySelectorAll('tr:not(.empty-row)')];
+    tbody.querySelector('.empty-row')?.remove();
 
-        rows.forEach((row, index) => {
-            row.querySelector('.order-cell').textContent = index + 1;
-            row.draggable = true;
-            row.classList.remove('start-stop', 'end-stop');
-            if (index === 0) row.classList.add('start-stop');
-            if (index === rows.length - 1) row.classList.add('end-stop');
-        });
+    rows.forEach((row, index) => {
+        row.querySelector('.order-cell').textContent = index + 1;
+        row.draggable = canManageRoutes;
+        row.classList.remove('start-stop', 'end-stop');
+        if (index === 0)             row.classList.add('start-stop');
+        if (index === rows.length - 1) row.classList.add('end-stop');
+    });
 
-        if (!rows.length) {
-            tbody.innerHTML = '<tr class="empty-row"><td colspan="4">No stops assigned to this route.</td></tr>';
+    if (!rows.length) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="4">No stops assigned to this route.</td></tr>';
+    }
+
+    // Refresh map whenever the stop order changes
+    refreshMap();
+};
+
+const bindRowEvents = (row) => {
+    row.addEventListener('click', () => {
+        tbody.querySelectorAll('tr').forEach((r) => r.classList.remove('selected-row'));
+        if (selectedRow === row) {
+            selectedRow = null;
+        } else {
+            selectedRow = row;
+            row.classList.add('selected-row');
         }
-    };
+    });
 
-    const bindRowEvents = (row) => {
-        row.addEventListener('click', () => {
-            tbody.querySelectorAll('tr').forEach((r) => r.classList.remove('selected-row'));
-            if (selectedRow === row) {
-                selectedRow = null;
-            } else {
-                selectedRow = row;
-                row.classList.add('selected-row');
-            }
-        });
-
+    if (canManageRoutes) {
         row.addEventListener('dragstart', () => { draggedRow = row; });
 
         row.addEventListener('dragover', (event) => {
@@ -191,9 +311,9 @@
             row.classList.remove('drop-target');
             if (!draggedRow || draggedRow === row) return;
 
-            const rows = [...tbody.querySelectorAll('tr:not(.empty-row)')];
+            const rows        = [...tbody.querySelectorAll('tr:not(.empty-row)')];
             const targetIndex = rows.indexOf(row);
-            const draggedIndex = rows.indexOf(draggedRow);
+            const draggedIndex= rows.indexOf(draggedRow);
             if (draggedIndex < targetIndex) {
                 row.after(draggedRow);
             } else {
@@ -202,72 +322,220 @@
             normalizeRows();
             showConfirmation();
         });
-    };
+    }
+};
 
-    const bindAllRows = () => {
-        tbody.querySelectorAll('tr:not(.empty-row)').forEach(bindRowEvents);
-    };
+const bindAllRows = () => {
+    tbody.querySelectorAll('tr:not(.empty-row)').forEach(bindRowEvents);
+};
 
-    stopSelector.addEventListener('change', () => {
-        const option = stopSelector.options[stopSelector.selectedIndex];
-        if (!option.value) return;
-        if (option.value === '__create_stop__') {
-            window.location.href = option.dataset.createUrl;
-            return;
-        }
+if (canManageRoutes) stopSelector.addEventListener('change', () => {
+    const option = stopSelector.options[stopSelector.selectedIndex];
+    if (!option.value) return;
+    if (option.value === '__create_stop__') {
+        window.location.href = option.dataset.createUrl;
+        return;
+    }
 
-        const emptyRow = tbody.querySelector('.empty-row');
-        if (emptyRow) emptyRow.remove();
+    const emptyRow = tbody.querySelector('.empty-row');
+    if (emptyRow) emptyRow.remove();
 
-        const newRow = document.createElement('tr');
-        newRow.setAttribute('data-stop-id', option.value);
-        newRow.setAttribute('draggable', 'true');
-        newRow.innerHTML = `
-            <td>${option.dataset.name}</td>
-            <td class="order-cell">0</td>
-            <td>${option.dataset.lat}</td>
-            <td>${option.dataset.lng}</td>
-        `;
-        tbody.appendChild(newRow);
-        bindRowEvents(newRow);
-        normalizeRows();
-        showConfirmation();
-        stopSelector.selectedIndex = 0;
+    const newRow = document.createElement('tr');
+    newRow.setAttribute('data-stop-id', option.value);
+    newRow.setAttribute('draggable', 'true');
+    newRow.setAttribute('data-lat',  option.dataset.lat);
+    newRow.setAttribute('data-lng',  option.dataset.lng);
+    newRow.setAttribute('data-name', option.dataset.name);
+    newRow.innerHTML = `
+        <td>${option.dataset.name}</td>
+        <td class="order-cell">0</td>
+        <td>${option.dataset.lat}</td>
+        <td>${option.dataset.lng}</td>
+    `;
+    tbody.appendChild(newRow);
+    bindRowEvents(newRow);
+    normalizeRows();
+    showConfirmation();
+    stopSelector.selectedIndex = 0;
+});
+
+if (canManageRoutes) deleteBtn.addEventListener('click', () => {
+    if (!selectedRow) return;
+    selectedRow.remove();
+    selectedRow = null;
+    normalizeRows();
+    showConfirmation();
+});
+
+const doSave = () => {
+    const stopIds = [...tbody.querySelectorAll('tr:not(.empty-row)')].map((row) => Number(row.dataset.stopId));
+    saveForm.querySelectorAll('input[name="ordered_stop_ids"]').forEach((input) => input.remove());
+    stopIds.forEach((stopId) => {
+        const input = document.createElement('input');
+        input.type  = 'hidden';
+        input.name  = 'ordered_stop_ids';
+        input.value = stopId;
+        saveForm.appendChild(input);
     });
+    saveForm.submit();
+};
 
-    deleteBtn.addEventListener('click', () => {
-        if (!selectedRow) return;
-        selectedRow.remove();
-        selectedRow = null;
-        normalizeRows();
-        showConfirmation();
-    });
+if (canManageRoutes) {
+    saveBtn?.addEventListener('click', doSave);
+    document.getElementById('saveChangesFooterBtn')?.addEventListener('click', doSave);
+}
 
-    const doSave = () => {
-        const stopIds = [...tbody.querySelectorAll('tr:not(.empty-row)')].map((row) => Number(row.dataset.stopId));
-        saveForm.querySelectorAll('input[name="ordered_stop_ids"]').forEach((input) => input.remove());
-        stopIds.forEach((stopId) => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'ordered_stop_ids';
-            input.value = stopId;
-            saveForm.appendChild(input);
-        });
-        saveForm.submit();
-    };
-    saveBtn.addEventListener('click', doSave);
-    document.getElementById('saveChangesFooterBtn').addEventListener('click', doSave);
-
-    revertBtn.addEventListener('click', () => {
-        tbody.innerHTML = initialRowsMarkup;
-        selectedRow = null;
-        bindAllRows();
-        normalizeRows();
-        confirmationPanel.style.display = 'none';
-    });
-
+if (canManageRoutes) revertBtn?.addEventListener('click', () => {
+    tbody.innerHTML = initialRowsMarkup;
+    selectedRow = null;
     bindAllRows();
     normalizeRows();
+    confirmationPanel.style.display = 'none';
+});
+
+bindAllRows();
+normalizeRows();
+
+
+// ────────────────────────────────────────────────────────────────────────────
+//  OSRM MAP
+// ────────────────────────────────────────────────────────────────────────────
+const OSRM_BASE   = 'https://router.project-osrm.org/route/v1/driving/';
+
+let map           = null;
+let routeLayer    = null;
+let markersGroup  = null;
+
+function initMap() {
+    if (map) return;
+    document.getElementById('stopRouteMap').style.display = 'block';
+    map = L.map('stopRouteMap');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+    }).addTo(map);
+    markersGroup = L.layerGroup().addTo(map);
+}
+
+function makeMarkerIcon(color, label) {
+    return L.divIcon({
+        className: '',
+        html: `<div style="
+            background:${color};color:#fff;border-radius:50%;
+            width:26px;height:26px;
+            display:flex;align-items:center;justify-content:center;
+            font-size:10px;font-weight:700;
+            border:2px solid #fff;
+            box-shadow:0 1px 4px rgba(0,0,0,0.35);
+        ">${label}</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+        popupAnchor: [0, -15],
+    });
+}
+
+// Read current stop rows from the DOM
+function getStopsFromTable() {
+    return [...tbody.querySelectorAll('tr:not(.empty-row)')].map((row, i) => ({
+        name : row.dataset.name || row.cells[0].textContent.trim(),
+        lat  : parseFloat(row.dataset.lat),
+        lng  : parseFloat(row.dataset.lng),
+        order: i + 1,
+    })).filter(s => !isNaN(s.lat) && !isNaN(s.lng));
+}
+
+async function fetchOSRMRoute(stops) {
+    const coords = stops.map(s => `${s.lng},${s.lat}`).join(';');
+    const url    = `${OSRM_BASE}${coords}?overview=full&geometries=geojson&steps=false`;
+    const resp   = await fetch(url);
+    if (!resp.ok) throw new Error('OSRM failed');
+    const data = await resp.json();
+    if (data.code !== 'Ok' || !data.routes.length) throw new Error('No route');
+    return data.routes[0].geometry;
+}
+
+let refreshTimer = null;
+
+async function refreshMap() {
+    // Debounce rapid calls (e.g. during drag-and-drop)
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(_doRefreshMap, 350);
+}
+
+async function _doRefreshMap() {
+    const stops = getStopsFromTable();
+    const notice= document.getElementById('mapNotice');
+
+    if (!stops.length) {
+        // No stops — hide map, show spinner area with message
+        if (map) {
+            document.getElementById('stopRouteMap').style.display = 'none';
+            document.getElementById('mapSpinnerOverlay').style.display = 'flex';
+            document.getElementById('mapSpinnerOverlay').innerHTML =
+                '<span style="color:#8096b4;">No stops with coordinates to display.</span>';
+        }
+        notice.style.display = 'none';
+        return;
+    }
+
+    // Show map, init if needed
+    document.getElementById('mapSpinnerOverlay').style.display = 'none';
+    initMap();
+
+    // Clear previous layers
+    markersGroup.clearLayers();
+    if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+
+    // Add markers
+    stops.forEach((stop, i) => {
+        const isFirst = i === 0;
+        const isLast  = i === stops.length - 1;
+        const color   = isFirst ? '#16a34a' : isLast ? '#dc2626' : '#0a4db2';
+        const label   = isFirst ? 'S' : isLast ? 'E' : String(i + 1);
+        L.marker([stop.lat, stop.lng], { icon: makeMarkerIcon(color, label) })
+         .bindPopup(`<b>${stop.name}</b><br>Stop ${i + 1}`)
+         .addTo(markersGroup);
+    });
+
+    // Fetch road-following route
+    if (stops.length >= 2) {
+        try {
+            const geometry = await fetchOSRMRoute(stops);
+            routeLayer = L.geoJSON(geometry, {
+                style: { color: '#0a4db2', weight: 5, opacity: 0.85 }
+            }).addTo(map);
+            map.fitBounds(routeLayer.getBounds(), { padding: [36, 36] });
+            notice.style.display = 'none';
+        } catch (err) {
+            console.warn('OSRM unavailable, straight-line fallback:', err);
+            const latlngs = stops.map(s => [s.lat, s.lng]);
+            routeLayer = L.polyline(latlngs, {
+                color: '#0a4db2', weight: 4, opacity: 0.75, dashArray: '8 6'
+            }).addTo(map);
+            map.fitBounds(routeLayer.getBounds(), { padding: [36, 36] });
+            notice.style.display  = 'block';
+            notice.textContent    = 'Note: OSRM routing is unavailable. Showing straight-line path.';
+        }
+    } else {
+        // Only one stop — just centre on it
+        map.setView([stops[0].lat, stops[0].lng], 13);
+    }
+
+    setTimeout(() => map.invalidateSize(), 120);
+}
+
+// Kick off initial map render
+_doRefreshMap();
 </script>
+
+{# ── Fixed logout button ───────────────────────── #}
+<a href="{% url 'logout' %}" class="logout-fixed">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+    </svg>
+    Logout
+</a>
 </body>
 </html>

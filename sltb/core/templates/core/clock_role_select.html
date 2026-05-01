@@ -1,0 +1,218 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} — SLTB Kandy South</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;900&family=Barlow+Condensed:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            font-family: 'Barlow', sans-serif;
+            background: #0a1628;
+            overflow: hidden;
+        }
+
+        /* ── LEFT: Picture Panel (25%) ── */
+        .picture-panel {
+            width: 25%;
+            min-height: 100vh;
+            flex-shrink: 0;
+            position: relative;
+            background: #0b1a30;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .picture-panel .panel-img {
+            position: absolute;
+            inset: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            object-position: center;
+            display: block;
+        }
+        .picture-panel::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to right, transparent 55%, #0a1628 100%);
+            pointer-events: none;
+        }
+        .picture-panel .placeholder-hint {
+            position: relative; z-index: 2;
+            text-align: center;
+            color: rgba(255,255,255,0.15);
+            font-size: 11px; font-weight: 600;
+            letter-spacing: 0.08em; text-transform: uppercase;
+            padding: 20px; line-height: 1.8;
+        }
+
+        /* ── RIGHT: Content Panel (75%) ── */
+        .content-panel {
+            flex: 1;
+            min-height: 100vh;
+            background: linear-gradient(160deg, #0a1628 0%, #0d2145 55%, #091530 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 48px 56px;
+            position: relative;
+            overflow: hidden;
+        }
+        .content-panel::before {
+            content: '';
+            position: absolute;
+            top: 35%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(37,99,235,0.10) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        /* ── Back link ── */
+        .back-link {
+            position: absolute;
+            top: 28px; left: 36px;
+            color: rgba(255,255,255,0.4);
+            text-decoration: none;
+            font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
+            display: flex; align-items: center; gap: 6px;
+            transition: color 0.15s; z-index: 5;
+        }
+        .back-link:hover { color: rgba(255,255,255,0.85); }
+
+        /* ── Badge ── */
+        .badge-action {
+            display: inline-block;
+            padding: 6px 20px;
+            border-radius: 99px;
+            font-size: 12px; font-weight: 700;
+            letter-spacing: 0.08em; text-transform: uppercase;
+            margin-bottom: 18px;
+            position: relative; z-index: 1;
+        }
+        .badge-in  { background: rgba(5,150,105,0.2);  color: #34d399; border: 1px solid rgba(52,211,153,0.35); }
+        .badge-out { background: rgba(220,38,38,0.2);   color: #f87171; border: 1px solid rgba(248,113,113,0.35); }
+
+        /* ── Heading ── */
+        .page-heading {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: clamp(26px, 4vw, 42px);
+            font-weight: 900;
+            color: #fff;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            line-height: 1.1;
+            margin-bottom: 8px;
+            position: relative; z-index: 1;
+        }
+        .page-sub {
+            font-size: 13px;
+            color: rgba(255,255,255,0.4);
+            text-align: center;
+            margin-bottom: 44px;
+            position: relative; z-index: 1;
+        }
+
+        /* ── Role buttons ── */
+        .role-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            width: 100%;
+            max-width: 520px;
+            position: relative; z-index: 1;
+        }
+        .role-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            padding: 42px 20px;
+            border-radius: 20px;
+            border: 1.5px solid transparent;
+            cursor: pointer;
+            text-decoration: none;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .role-btn:hover { transform: translateY(-5px); box-shadow: 0 18px 48px rgba(0,0,0,0.55); }
+        .role-btn:active { transform: translateY(-2px); }
+
+        .role-btn-driver {
+            background: linear-gradient(150deg, #1e3a5f, #152d4a);
+            border-color: rgba(59,130,246,0.3);
+            color: #fff;
+        }
+        .role-btn-driver:hover { border-color: rgba(59,130,246,0.75); color: #fff; }
+
+        .role-btn-conductor {
+            background: linear-gradient(150deg, #2d1b4e, #1f1238);
+            border-color: rgba(139,92,246,0.3);
+            color: #fff;
+        }
+        .role-btn-conductor:hover { border-color: rgba(139,92,246,0.75); color: #fff; }
+
+        .role-icon  { font-size: 44px; line-height: 1; }
+        .role-label {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: 20px; font-weight: 900;
+            letter-spacing: 0.04em; text-transform: uppercase;
+        }
+        .role-sub   { font-size: 12px; opacity: 0.5; font-weight: 500; }
+
+        @media (max-width: 700px) {
+            body { overflow: auto; }
+            .picture-panel { display: none; }
+            .content-panel { padding: 40px 24px; }
+            .role-grid { grid-template-columns: 1fr; max-width: 280px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- LEFT: Picture Panel (25%) -->
+    <div class="picture-panel">
+       <img class="panel-img" src="{% static 'core/LogoFinal.png' %}" alt="Kandy South Depot">
+    </div>
+
+    <!-- RIGHT: Content (75%) -->
+    <div class="content-panel">
+        <a href="{% url 'opening' %}" class="back-link">← Back to Portal</a>
+
+        <span class="badge-action {% if action == 'in' %}badge-in{% else %}badge-out{% endif %}">
+            {% if action == 'in' %}Clock-In{% else %}Clock-Out{% endif %}
+        </span>
+
+        <h1 class="page-heading">
+            Select Your Role<br>
+            to {% if action == 'in' %}Clock In{% else %}Clock Out{% endif %}
+        </h1>
+        <p class="page-sub">Choose your role to proceed with {{ action_label }}</p>
+
+        <div class="role-grid">
+            <a href="{% url 'clock_action' %}?action={{ action }}&role=driver" class="role-btn role-btn-driver">
+                <span class="role-icon">🚌</span>
+                <span class="role-label">Driver</span>
+                <span class="role-sub">Bus Driver</span>
+            </a>
+            <a href="{% url 'clock_action' %}?action={{ action }}&role=conductor" class="role-btn role-btn-conductor">
+                <span class="role-icon">🎟️</span>
+                <span class="role-label">Conductor</span>
+                <span class="role-sub">Bus Conductor</span>
+            </a>
+        </div>
+    </div>
+
+</body>
+</html>

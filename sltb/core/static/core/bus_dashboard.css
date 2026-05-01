@@ -1078,3 +1078,310 @@ footer.summary-row span strong { color: #93c5fd; }
 .tank-wrap { display: flex; flex-direction: column; align-items: center; gap: 18px; }
 .tank-svg-container { position: relative; width: 260px; height: 380px; }
 .chart-canvas-wrap { height: 300px; }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PAGE LOAD ANIMATIONS — smooth entrance for every screen
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Keyframes ──────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateY(-18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(-24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Base utility — applied via JS stagger ──────────────────── */
+.anim-ready {
+  opacity: 0;
+}
+.anim-done {
+  opacity: 1;
+  transition: opacity 0.38s ease, transform 0.38s ease;
+}
+
+/* ── Header slides down ─────────────────────────────────────── */
+.top-area {
+  animation: fadeDown 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Nav buttons stagger in ─────────────────────────────────── */
+.module-btn {
+  animation: fadeIn 0.35s ease both;
+}
+.module-buttons .module-btn:nth-child(1)  { animation-delay: 0.10s; }
+.module-buttons .module-btn:nth-child(2)  { animation-delay: 0.16s; }
+.module-buttons .module-btn:nth-child(3)  { animation-delay: 0.22s; }
+.module-buttons .module-btn:nth-child(4)  { animation-delay: 0.28s; }
+.module-buttons .module-btn:nth-child(5)  { animation-delay: 0.34s; }
+.module-buttons .module-btn:nth-child(6)  { animation-delay: 0.40s; }
+.module-buttons .module-btn:nth-child(7)  { animation-delay: 0.46s; }
+.module-buttons .module-btn:nth-child(8)  { animation-delay: 0.52s; }
+.module-buttons .module-btn:nth-child(9)  { animation-delay: 0.58s; }
+.module-buttons .module-btn:nth-child(10) { animation-delay: 0.64s; }
+.module-buttons .module-btn:nth-child(11) { animation-delay: 0.70s; }
+
+/* ── Page heading ───────────────────────────────────────────── */
+.dash-heading,
+.welcome-title,
+.confirm-title,
+.panel-title,
+.route-stops-header h2,
+.timetable-header h2,
+.section-head {
+  animation: fadeUp 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0.18s both;
+}
+.dash-sub {
+  animation: fadeUp 0.38s ease 0.26s both;
+}
+
+/* ── Stat grid cards ────────────────────────────────────────── */
+.stat-grid {
+  animation: fadeUp 0.4s ease 0.28s both;
+}
+.stat-card {
+  animation: scaleIn 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stat-grid .stat-card:nth-child(1)  { animation-delay: 0.22s; }
+.stat-grid .stat-card:nth-child(2)  { animation-delay: 0.28s; }
+.stat-grid .stat-card:nth-child(3)  { animation-delay: 0.34s; }
+.stat-grid .stat-card:nth-child(4)  { animation-delay: 0.40s; }
+.stat-grid .stat-card:nth-child(5)  { animation-delay: 0.46s; }
+.stat-grid .stat-card:nth-child(6)  { animation-delay: 0.52s; }
+.stat-grid .stat-card:nth-child(7)  { animation-delay: 0.58s; }
+.stat-grid .stat-card:nth-child(8)  { animation-delay: 0.64s; }
+
+/* ── Dashboard section cards (role_dashboard) ───────────────── */
+.sc-card {
+  animation: fadeUp 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.dash-section .sc-card:nth-child(1) { animation-delay: 0.30s; }
+.dash-section .sc-card:nth-child(2) { animation-delay: 0.38s; }
+.dash-section .sc-card:nth-child(3) { animation-delay: 0.46s; }
+.dash-section .sc-card:nth-child(4) { animation-delay: 0.54s; }
+.dash-section .sc-card:nth-child(5) { animation-delay: 0.62s; }
+.dash-section .sc-card:nth-child(6) { animation-delay: 0.70s; }
+
+/* ── Alert banners ──────────────────────────────────────────── */
+.dash-alert {
+  animation: fadeUp 0.38s ease 0.32s both;
+}
+
+/* ── Dash panels ─────────────────────────────────────────────── */
+.dash-panel {
+  animation: fadeUp 0.44s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.dash-wrap > .dash-panel:nth-child(1) { animation-delay: 0.28s; }
+.dash-wrap > .dash-panel:nth-child(2) { animation-delay: 0.36s; }
+.dash-wrap > .dash-panel:nth-child(3) { animation-delay: 0.44s; }
+.dash-wrap > .dash-panel:nth-child(4) { animation-delay: 0.52s; }
+
+/* ── Bus / Driver / Conductor panels ────────────────────────── */
+.bus-table-panel,
+.details-panel {
+  animation: fadeUp 0.46s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.bus-table-panel { animation-delay: 0.28s; }
+.details-panel   { animation-delay: 0.40s; }
+
+/* ── Manage / form pages ────────────────────────────────────── */
+.manage-page {
+  animation: scaleIn 0.44s cubic-bezier(0.22, 1, 0.36, 1) 0.18s both;
+}
+.manage-form {
+  animation: fadeUp 0.40s ease 0.26s both;
+}
+
+/* ── Maintenance panels ─────────────────────────────────────── */
+.maintenance-panel {
+  animation: scaleIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.maintenance-grid .maintenance-panel:nth-child(1) { animation-delay: 0.22s; }
+.maintenance-grid .maintenance-panel:nth-child(2) { animation-delay: 0.30s; }
+.maintenance-grid .maintenance-panel:nth-child(3) { animation-delay: 0.38s; }
+.maintenance-grid .maintenance-panel:nth-child(4) { animation-delay: 0.46s; }
+
+.records-table-panel {
+  animation: fadeUp 0.44s ease 0.36s both;
+}
+.completed-panel {
+  animation: fadeUp 0.44s ease 0.44s both;
+}
+.chatbot-panel {
+  animation: fadeUp 0.44s ease 0.52s both;
+}
+
+/* ── Fuel dashboard ─────────────────────────────────────────── */
+.tank-panel {
+  animation: fadeUp 0.44s cubic-bezier(0.22, 1, 0.36, 1) 0.22s both;
+}
+.refill-panel {
+  animation: fadeUp 0.44s cubic-bezier(0.22, 1, 0.36, 1) 0.32s both;
+}
+.log-panel {
+  animation: fadeUp 0.42s ease both;
+}
+.log-section .log-panel:nth-child(1) { animation-delay: 0.38s; }
+.log-section .log-panel:nth-child(2) { animation-delay: 0.48s; }
+.low-buses-panel {
+  animation: fadeUp 0.40s ease 0.28s both;
+}
+
+/* ── Revenue ────────────────────────────────────────────────── */
+.rev-card {
+  animation: fadeUp 0.42s ease both;
+}
+
+/* ── Route / stops panels ───────────────────────────────────── */
+.route-stops-wrap,
+.timetable-wrap,
+.scheduling-wrap {
+  animation: fadeUp 0.44s cubic-bezier(0.22, 1, 0.36, 1) 0.24s both;
+}
+
+/* ── Welcome / bus trip screen ──────────────────────────────── */
+.welcome-panel,
+.confirm-shell,
+.schedules-shell {
+  animation: scaleIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.14s both;
+}
+
+.bus-code-item {
+  animation: scaleIn 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.bus-code-list .bus-code-item:nth-child(1)  { animation-delay: 0.20s; }
+.bus-code-list .bus-code-item:nth-child(2)  { animation-delay: 0.26s; }
+.bus-code-list .bus-code-item:nth-child(3)  { animation-delay: 0.32s; }
+.bus-code-list .bus-code-item:nth-child(4)  { animation-delay: 0.38s; }
+.bus-code-list .bus-code-item:nth-child(5)  { animation-delay: 0.44s; }
+.bus-code-list .bus-code-item:nth-child(6)  { animation-delay: 0.50s; }
+.bus-code-list .bus-code-item:nth-child(7)  { animation-delay: 0.56s; }
+.bus-code-list .bus-code-item:nth-child(8)  { animation-delay: 0.62s; }
+.bus-code-list .bus-code-item:nth-child(9)  { animation-delay: 0.68s; }
+.bus-code-list .bus-code-item:nth-child(10) { animation-delay: 0.74s; }
+.bus-code-list .bus-code-item:nth-child(n+11) { animation-delay: 0.80s; }
+
+/* ── Schedule cards ─────────────────────────────────────────── */
+.schedule-card {
+  animation: fadeUp 0.36s ease both;
+}
+.schedules-shell .schedule-card:nth-child(1) { animation-delay: 0.28s; }
+.schedules-shell .schedule-card:nth-child(2) { animation-delay: 0.36s; }
+.schedules-shell .schedule-card:nth-child(3) { animation-delay: 0.44s; }
+.schedules-shell .schedule-card:nth-child(4) { animation-delay: 0.52s; }
+.schedules-shell .schedule-card:nth-child(5) { animation-delay: 0.60s; }
+
+/* ── Attendance / table rows stagger via JS ─────────────────── */
+tbody tr {
+  animation: fadeIn 0.28s ease both;
+}
+
+/* ── Summary footer ─────────────────────────────────────────── */
+.summary-row,
+footer.summary-row {
+  animation: fadeUp 0.38s ease 0.5s both;
+}
+
+/* ── Notification panel (already hidden, skip) ──────────────── */
+.notif-panel {
+  animation: none;
+}
+
+/* ── Login / opening page ───────────────────────────────────── */
+.login-wrap,
+.opening-shell {
+  animation: scaleIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+/* ── Attendance dashboard ───────────────────────────────────── */
+.att-shell,
+.att-panel {
+  animation: fadeUp 0.44s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.att-shell  { animation-delay: 0.20s; }
+.att-panel  { animation-delay: 0.30s; }
+
+/* ── Clock / role select ────────────────────────────────────── */
+.clock-shell,
+.role-select-shell {
+  animation: scaleIn 0.46s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+}
+
+/* ── Fuel section inline ────────────────────────────────────── */
+.fuel-section {
+  animation: fadeUp 0.44s ease 0.30s both;
+}
+
+/* ── Stat-box (fuel/revenue) ────────────────────────────────── */
+.stat-box {
+  animation: scaleIn 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.level-stats .stat-box:nth-child(1) { animation-delay: 0.22s; }
+.level-stats .stat-box:nth-child(2) { animation-delay: 0.30s; }
+.level-stats .stat-box:nth-child(3) { animation-delay: 0.38s; }
+.level-stats .stat-box:nth-child(4) { animation-delay: 0.46s; }
+
+/* ── Low-bus alert cards ────────────────────────────────────── */
+.low-bus-card {
+  animation: scaleIn 0.32s ease both;
+}
+.low-bus-grid .low-bus-card:nth-child(1) { animation-delay: 0.24s; }
+.low-bus-grid .low-bus-card:nth-child(2) { animation-delay: 0.30s; }
+.low-bus-grid .low-bus-card:nth-child(3) { animation-delay: 0.36s; }
+.low-bus-grid .low-bus-card:nth-child(4) { animation-delay: 0.42s; }
+.low-bus-grid .low-bus-card:nth-child(5) { animation-delay: 0.48s; }
+
+/* ── Table rows: JS-driven stagger for tbody ────────────────── */
+/* (rows start at opacity 0, JS adds class to trigger) */
+tbody tr.row-anim {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+tbody tr.row-anim.row-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Respect reduced-motion preference ──────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Pure-CSS table-row stagger (no JS needed) ──────────────── */
+tbody tr:nth-child(1)  { animation-delay: 0.30s; }
+tbody tr:nth-child(2)  { animation-delay: 0.34s; }
+tbody tr:nth-child(3)  { animation-delay: 0.38s; }
+tbody tr:nth-child(4)  { animation-delay: 0.42s; }
+tbody tr:nth-child(5)  { animation-delay: 0.46s; }
+tbody tr:nth-child(6)  { animation-delay: 0.50s; }
+tbody tr:nth-child(7)  { animation-delay: 0.54s; }
+tbody tr:nth-child(8)  { animation-delay: 0.58s; }
+tbody tr:nth-child(9)  { animation-delay: 0.62s; }
+tbody tr:nth-child(10) { animation-delay: 0.66s; }
+tbody tr:nth-child(n+11) { animation-delay: 0.70s; }

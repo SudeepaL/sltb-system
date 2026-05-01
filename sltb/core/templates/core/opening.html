@@ -1,0 +1,310 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLTB Kandy South Depot</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;900&family=Barlow+Condensed:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            font-family: 'Barlow', sans-serif;
+            background: #0a1628;
+            overflow: hidden;
+        }
+
+        /* ── LEFT: Picture Panel (25%) ── */
+        .picture-panel {
+            width: 25%;
+            min-height: 100vh;
+            flex-shrink: 0;
+            position: relative;
+            background: #0b1a30;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .picture-panel .panel-img {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+            display: block;
+        }
+        /* Right-edge fade so the image blends into the dark background */
+        .picture-panel::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to right, transparent 55%, #0a1628 100%);
+            pointer-events: none;
+        }
+        .picture-panel .placeholder-hint {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            color: rgba(255,255,255,0.15);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 20px;
+            line-height: 1.8;
+        }
+
+        /* ── RIGHT: Content Panel (75%) ── */
+        .content-panel {
+            flex: 1;
+            min-height: 100vh;
+            background: linear-gradient(160deg, #0a1628 0%, #0d2145 55%, #091530 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 48px 56px;
+            position: relative;
+            overflow: hidden;
+        }
+        .content-panel::before {
+            content: '';
+            position: absolute;
+            top: 35%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(37,99,235,0.11) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        /* ── Logo ── */
+        .logo-wrap { margin-bottom: 20px; position: relative; z-index: 1; }
+        .logo-wrap img {
+            width: 80px; height: 80px;
+            border-radius: 50%; object-fit: cover;
+            border: 2px solid rgba(255,255,255,0.2);
+            box-shadow: 0 6px 28px rgba(0,0,0,0.5);
+        }
+
+        /* ── Heading ── */
+        .depot-title {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: clamp(28px, 4vw, 46px);
+            font-weight: 900;
+            color: #fff;
+            text-align: center;
+            letter-spacing: 0.01em;
+            line-height: 1.1;
+            margin-bottom: 8px;
+            position: relative; z-index: 1;
+            text-transform: uppercase;
+        }
+        .depot-subtitle {
+            font-size: 12px;
+            color: rgba(255,255,255,0.4);
+            text-align: center;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-bottom: 44px;
+            position: relative; z-index: 1;
+        }
+
+        /* ── Action Buttons ── */
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+            width: 100%;
+            max-width: 680px;
+            position: relative; z-index: 1;
+        }
+        .action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 32px 16px;
+            border-radius: 18px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            text-decoration: none;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s;
+            box-shadow: 0 6px 28px rgba(0,0,0,0.4);
+        }
+        .action-btn:hover { transform: translateY(-5px); box-shadow: 0 18px 48px rgba(0,0,0,0.55); }
+        .action-btn:active { transform: translateY(-2px); }
+
+        .btn-login   { background: linear-gradient(150deg,#1a4fd8,#1535a0); border-color:rgba(99,140,255,0.3);  color:#fff; }
+        .btn-clockin { background: linear-gradient(150deg,#059669,#065f46); border-color:rgba(52,211,153,0.25); color:#fff; }
+        .btn-clockout{ background: linear-gradient(150deg,#dc2626,#991b1b); border-color:rgba(252,165,165,0.25);color:#fff; }
+        .btn-login:hover    { border-color:rgba(99,140,255,0.7);  color:#fff; }
+        .btn-clockin:hover  { border-color:rgba(52,211,153,0.6);  color:#fff; }
+        .btn-clockout:hover { border-color:rgba(252,165,165,0.6); color:#fff; }
+
+        .btn-icon  { font-size: 34px; line-height: 1; }
+        .btn-label { font-size: 17px; font-weight: 900; font-family:'Barlow Condensed',sans-serif; letter-spacing:0.04em; text-transform:uppercase; }
+        .btn-desc  { font-size: 11px; opacity: 0.65; font-weight: 500; text-align: center; line-height: 1.4; }
+
+        /* ── Live Clock ── */
+        .clock-strip {
+            margin-top: 40px; position: relative; z-index: 1;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .clock-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: #3b82f6;
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+        @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }
+        #live-clock {
+            font-size: 13px; color: rgba(255,255,255,0.45);
+            font-weight: 600; letter-spacing: 0.04em;
+            font-family: 'Barlow Condensed', sans-serif;
+        }
+
+        @media (max-width: 700px) {
+            body { overflow: auto; }
+            .picture-panel { display: none; }
+            .content-panel { padding: 40px 24px; }
+            .action-grid { grid-template-columns: 1fr; max-width: 320px; }
+        }
+
+        /* ══════════════════════════════════════════
+           PAGE-LOAD ANIMATIONS
+           ══════════════════════════════════════════ */
+
+        @keyframes panelSlideIn {
+            from { opacity: 0; transform: translateX(-32px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes contentFadeUp {
+            from { opacity: 0; transform: translateY(28px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes logoPopIn {
+            from { opacity: 0; transform: scale(0.55); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes titleReveal {
+            from { opacity: 0; transform: translateY(22px) skewY(1deg); }
+            to   { opacity: 1; transform: translateY(0) skewY(0deg); }
+        }
+        @keyframes btnRiseIn {
+            from { opacity: 0; transform: translateY(24px) scale(0.94); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes clockFadeIn {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+        @keyframes glowPulse {
+            0%,100% { opacity: 0.11; }
+            50%      { opacity: 0.22; }
+        }
+
+        /* Picture panel sweeps in from left */
+        .picture-panel {
+            animation: panelSlideIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
+        /* Ambient glow breathes */
+        .content-panel::before {
+            animation: glowPulse 4s ease-in-out infinite;
+        }
+
+        /* Logo bounces in */
+        .logo-wrap {
+            animation: logoPopIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both;
+        }
+
+        /* Title slides up */
+        .depot-title {
+            animation: titleReveal 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.34s both;
+        }
+        .depot-subtitle {
+            animation: contentFadeUp 0.45s ease 0.46s both;
+        }
+
+        /* Action buttons stagger in */
+        .action-btn:nth-child(1) {
+            animation: btnRiseIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.52s both;
+        }
+        .action-btn:nth-child(2) {
+            animation: btnRiseIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.64s both;
+        }
+        .action-btn:nth-child(3) {
+            animation: btnRiseIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.76s both;
+        }
+
+        /* Clock strip fades in last */
+        .clock-strip {
+            animation: clockFadeIn 0.5s ease 0.90s both;
+        }
+
+        /* Respect reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-delay: 0ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- LEFT: Your picture goes here (25%) -->
+    <div class="picture-panel">
+        <img class="panel-img" src="{% static 'core/LogoFinal.png' %}" alt="Kandy South Depot">
+    </div>
+
+    <!-- RIGHT: Content (75%) -->
+    <div class="content-panel">
+        <div class="logo-wrap">
+            <img src="{% static 'core/logo.jpg' %}" alt="SLTB Logo">
+        </div>
+
+        <h1 class="depot-title">Welcome to SLTB<br>Kandy South Depot</h1>
+        <p class="depot-subtitle">Sri Lanka Transport Board &mdash; Staff Portal</p>
+
+        <div class="action-grid">
+            <a href="{% url 'login' %}" class="action-btn btn-login">
+                <span class="btn-icon">🔐</span>
+                <span class="btn-label">Login</span>
+                <span class="btn-desc">Access admin dashboard</span>
+            </a>
+            <a href="{% url 'clock_role_select' %}?action=in" class="action-btn btn-clockin">
+                <span class="btn-icon">✅</span>
+                <span class="btn-label">Clock-In</span>
+                <span class="btn-desc">Start your shift</span>
+            </a>
+            <a href="{% url 'clock_role_select' %}?action=out" class="action-btn btn-clockout">
+                <span class="btn-icon">🚪</span>
+                <span class="btn-label">Clock-Out</span>
+                <span class="btn-desc">End your shift</span>
+            </a>
+        </div>
+
+        <div class="clock-strip">
+            <span class="clock-dot"></span>
+            <span id="live-clock"></span>
+        </div>
+    </div>
+
+<script>
+    function updateClock() {
+        const now = new Date();
+        document.getElementById('live-clock').textContent =
+            now.toLocaleString('en-LK', { weekday:'long', year:'numeric', month:'long',
+                                          day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    }
+    updateClock(); setInterval(updateClock, 1000);
+</script>
+</body>
+</html>

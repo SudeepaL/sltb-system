@@ -1,0 +1,397 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} — SLTB Kandy South</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700;900&family=Barlow+Condensed:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            font-family: 'Barlow', sans-serif;
+            background: #0a1628;
+            overflow: hidden;
+        }
+
+        /* ── LEFT: Picture Panel (25%) ── */
+        .picture-panel {
+            width: 25%;
+            min-height: 100vh;
+            flex-shrink: 0;
+            position: relative;
+            background: #0b1a30;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .picture-panel .panel-img {
+            position: absolute;
+            inset: 0;
+            width: 100%; height: 100%;
+            object-fit: cover;
+            object-position: center;
+            display: block;
+        }
+        .picture-panel::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to right, transparent 55%, #0a1628 100%);
+            pointer-events: none;
+        }
+        .picture-panel .placeholder-hint {
+            position: relative; z-index: 2;
+            text-align: center;
+            color: rgba(255,255,255,0.15);
+            font-size: 11px; font-weight: 600;
+            letter-spacing: 0.08em; text-transform: uppercase;
+            padding: 20px; line-height: 1.8;
+        }
+
+        /* ── RIGHT: Content Panel (75%) ── */
+        .content-panel {
+            flex: 1;
+            min-height: 100vh;
+            background: linear-gradient(160deg, #0a1628 0%, #0d2145 55%, #091530 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 48px 56px;
+            position: relative;
+            overflow: hidden;
+        }
+        .content-panel::before {
+            content: '';
+            position: absolute;
+            top: 35%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(37,99,235,0.10) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        /* ── Back link ── */
+        .back-link {
+            position: absolute;
+            top: 28px; left: 36px;
+            color: rgba(255,255,255,0.4);
+            text-decoration: none;
+            font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
+            display: flex; align-items: center; gap: 6px;
+            transition: color 0.15s; z-index: 5;
+        }
+        .back-link:hover { color: rgba(255,255,255,0.85); }
+
+        /* ── Badge ── */
+        .badge-action {
+            display: inline-block;
+            padding: 6px 20px;
+            border-radius: 99px;
+            font-size: 12px; font-weight: 700;
+            letter-spacing: 0.08em; text-transform: uppercase;
+            margin-bottom: 14px;
+            position: relative; z-index: 1;
+        }
+        .badge-in  { background: rgba(5,150,105,0.2);  color: #34d399; border: 1px solid rgba(52,211,153,0.35); }
+        .badge-out { background: rgba(220,38,38,0.2);   color: #f87171; border: 1px solid rgba(248,113,113,0.35); }
+
+        /* ── Page heading ── */
+        .page-heading {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: clamp(22px, 3.5vw, 36px);
+            font-weight: 900;
+            color: #fff;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            line-height: 1.1;
+            margin-bottom: 28px;
+            position: relative; z-index: 1;
+        }
+
+        /* ── Analog Clock ── */
+        .clock-wrap {
+            margin-bottom: 28px;
+            position: relative; z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .clock-face {
+            width: 150px; height: 150px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #1e3a5f, #0d2145);
+            border: 3px solid rgba(255,255,255,0.14);
+            box-shadow: 0 0 0 8px rgba(255,255,255,0.04), 0 16px 48px rgba(0,0,0,0.5);
+            position: relative;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .clock-center {
+            width: 9px; height: 9px;
+            background: #60a5fa;
+            border-radius: 50%;
+            position: absolute; z-index: 10;
+        }
+        .hand {
+            position: absolute;
+            bottom: 50%; left: 50%;
+            transform-origin: bottom center;
+            border-radius: 4px;
+        }
+        .hand-hour   { width: 5px;  height: 40px; background: #fff;    margin-left: -2.5px; }
+        .hand-minute { width: 3px;  height: 54px; background: #93c5fd; margin-left: -1.5px; }
+        .hand-second { width: 2px;  height: 60px; background: #f87171; margin-left: -1px; }
+        .tick {
+            position: absolute;
+            width: 2px; background: rgba(255,255,255,0.25);
+            transform-origin: bottom center;
+            bottom: 50%; left: 50%; margin-left: -1px;
+        }
+        .tick-major { height: 9px;  background: rgba(255,255,255,0.55); width: 3px; margin-left: -1.5px; }
+        .tick-minor { height: 5px; }
+        .clock-digital {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: 14px; color: rgba(255,255,255,0.45);
+            margin-top: 10px; letter-spacing: 0.06em; font-weight: 700;
+        }
+
+        /* ── Input Card ── */
+        .clock-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 22px;
+            padding: 32px 28px;
+            width: 100%;
+            max-width: 400px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+            position: relative; z-index: 1;
+        }
+
+        /* ── NIC field ── */
+        .field-label {
+            font-size: 11px; font-weight: 700;
+            letter-spacing: 0.09em; text-transform: uppercase;
+            color: rgba(255,255,255,0.45);
+            margin-bottom: 8px; display: block;
+        }
+        .nic-input {
+            width: 100%;
+            padding: 13px 18px;
+            border-radius: 12px;
+            border: 1.5px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.07);
+            color: #fff;
+            font-size: 16px; font-weight: 700;
+            font-family: 'Barlow Condensed', monospace;
+            letter-spacing: 0.06em;
+            outline: none;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .nic-input::placeholder { color: rgba(255,255,255,0.22); font-weight: 400; letter-spacing: 0.02em; }
+        .nic-input:focus {
+            border-color: rgba(96,165,250,0.7);
+            background: rgba(255,255,255,0.1);
+        }
+
+        /* ── Name display ── */
+        .name-display { margin-top: 12px; min-height: 48px; display: flex; align-items: center; }
+        .name-found {
+            display: flex; align-items: center; gap: 10px;
+            background: rgba(5,150,105,0.12);
+            border: 1px solid rgba(52,211,153,0.3);
+            border-radius: 10px; padding: 10px 16px; width: 100%;
+        }
+        .name-found .staff-name  { font-size: 15px; font-weight: 800; color: #34d399; font-family: 'Barlow Condensed', sans-serif; letter-spacing: 0.02em; }
+        .name-found .staff-role  { font-size: 12px; color: rgba(52,211,153,0.6); margin-top: 1px; }
+        .name-not-found {
+            display: flex; align-items: center; gap: 8px;
+            background: rgba(220,38,38,0.1);
+            border: 1px solid rgba(248,113,113,0.3);
+            border-radius: 10px; padding: 10px 16px; width: 100%;
+            font-size: 13px; color: #f87171; font-weight: 600;
+        }
+        .name-loading {
+            font-size: 13px; color: rgba(255,255,255,0.35);
+            padding: 10px 4px; display: flex; align-items: center; gap: 8px;
+        }
+
+        /* ── Submit button ── */
+        .submit-btn {
+            width: 100%; margin-top: 18px;
+            padding: 15px;
+            border: none; border-radius: 13px;
+            font-size: 16px; font-weight: 900;
+            font-family: 'Barlow Condensed', sans-serif;
+            letter-spacing: 0.08em; text-transform: uppercase;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+        }
+        .submit-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none !important; }
+        .submit-btn:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 10px 32px rgba(0,0,0,0.4); }
+        .btn-start { background: linear-gradient(150deg,#059669,#065f46); color:#fff; box-shadow:0 6px 24px rgba(5,95,70,0.4); }
+        .btn-end   { background: linear-gradient(150deg,#dc2626,#991b1b); color:#fff; box-shadow:0 6px 24px rgba(153,27,27,0.4); }
+
+        /* ── Spinner ── */
+        .spinner {
+            display: inline-block; width: 13px; height: 13px;
+            border: 2px solid rgba(255,255,255,0.25);
+            border-top-color: rgba(255,255,255,0.7);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 700px) {
+            body { overflow: auto; }
+            .picture-panel { display: none; }
+            .content-panel { padding: 40px 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- LEFT: Picture Panel (25%) -->
+    <div class="picture-panel">
+        <img class="panel-img" src="{% static 'core/LogoFinal.png' %}" alt="Kandy South Depot">
+    </div>
+
+    <!-- RIGHT: Content (75%) -->
+    <div class="content-panel">
+        <a href="{% url 'clock_role_select' %}?action={{ action }}" class="back-link">← Back</a>
+
+        <span class="badge-action {% if action == 'in' %}badge-in{% else %}badge-out{% endif %}">
+            {{ role_label }}
+        </span>
+
+        <h1 class="page-heading">{{ page_title }}</h1>
+
+        <!-- Analog Clock -->
+        <div class="clock-wrap">
+            <div class="clock-face" id="clockFace">
+                <div class="hand hand-hour"   id="hourHand"></div>
+                <div class="hand hand-minute" id="minuteHand"></div>
+                <div class="hand hand-second" id="secondHand"></div>
+                <div class="clock-center"></div>
+            </div>
+            <div class="clock-digital" id="digitalTime"></div>
+        </div>
+
+        <!-- NIC Input Card -->
+        <div class="clock-card">
+            <label class="field-label" for="nicInput">Enter {{ role_label }} NIC Number</label>
+            <input type="text" class="nic-input" id="nicInput"
+                   placeholder="e.g. 199012345678 or 901234567V"
+                   autocomplete="off" spellcheck="false" maxlength="20">
+
+            <div class="name-display" id="nameDisplay"></div>
+
+            <form method="post" id="clockForm" style="display:none;">
+                {% csrf_token %}
+                <input type="hidden" name="nic" id="hiddenNic">
+                <input type="hidden" name="action" value="{{ action }}">
+                <input type="hidden" name="role" value="{{ role }}">
+                <button type="submit"
+                        class="submit-btn {% if action == 'in' %}btn-start{% else %}btn-end{% endif %}"
+                        id="submitBtn" disabled>
+                    {% if action == 'in' %}✅ Start Shift{% else %}🚪 End Shift{% endif %}
+                </button>
+            </form>
+            <button class="submit-btn {% if action == 'in' %}btn-start{% else %}btn-end{% endif %}"
+                    id="submitProxy" disabled>
+                {% if action == 'in' %}✅ Start Shift{% else %}🚪 End Shift{% endif %}
+            </button>
+        </div>
+    </div>
+
+<script>
+// ── Analog clock ──────────────────────────────────────────
+(function () {
+    const face = document.getElementById('clockFace');
+    for (let i = 0; i < 60; i++) {
+        const tick = document.createElement('div');
+        tick.className = 'tick ' + (i % 5 === 0 ? 'tick-major' : 'tick-minor');
+        tick.style.transform = `translateX(-50%) rotate(${i * 6}deg) translateY(-${i % 5 === 0 ? 66 : 68}px)`;
+        face.appendChild(tick);
+    }
+    function updateClock() {
+        const now = new Date();
+        const h = now.getHours() % 12, m = now.getMinutes(), s = now.getSeconds();
+        document.getElementById('hourHand').style.transform   = `translateX(-50%) rotate(${h*30 + m*0.5}deg)`;
+        document.getElementById('minuteHand').style.transform = `translateX(-50%) rotate(${m*6 + s*0.1}deg)`;
+        document.getElementById('secondHand').style.transform = `translateX(-50%) rotate(${s*6}deg)`;
+        const pad = n => String(n).padStart(2,'0');
+        const ampm = now.getHours() >= 12 ? 'PM' : 'AM';
+        document.getElementById('digitalTime').textContent =
+            `${pad(now.getHours()%12||12)}:${pad(m)}:${pad(s)} ${ampm}`;
+    }
+    updateClock(); setInterval(updateClock, 1000);
+})();
+
+// ── NIC lookup ────────────────────────────────────────────
+const nicInput    = document.getElementById('nicInput');
+const nameDisplay = document.getElementById('nameDisplay');
+const submitBtn   = document.getElementById('submitBtn');
+const submitProxy = document.getElementById('submitProxy');
+const hiddenNic   = document.getElementById('hiddenNic');
+const clockForm   = document.getElementById('clockForm');
+
+let lookupTimer = null, lastNic = '';
+
+nicInput.addEventListener('input', function () {
+    const nic = this.value.trim().toUpperCase();
+    if (nic === lastNic) return;
+    lastNic = nic;
+    nameDisplay.innerHTML = '';
+    submitBtn.disabled = submitProxy.disabled = true;
+    if (nic.length < 9) return;
+    clearTimeout(lookupTimer);
+    nameDisplay.innerHTML = '<span class="name-loading"><span class="spinner"></span> Looking up…</span>';
+    lookupTimer = setTimeout(() => {
+        fetch(`/attendance/lookup/?nic=${encodeURIComponent(nic)}&role={{ role }}&action={{ action }}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.found) {
+                    let warning = '';
+                    if (data.already_clocked_in && '{{ action }}' === 'in')
+                        warning = `<div style="font-size:11px;color:#fbbf24;margin-top:4px;">⚠️ Already clocked in — will update.</div>`;
+                    if (data.already_clocked_out && '{{ action }}' === 'out')
+                        warning = `<div style="font-size:11px;color:#fbbf24;margin-top:4px;">⚠️ Already clocked out today.</div>`;
+                    nameDisplay.innerHTML = `
+                        <div class="name-found">
+                            <span style="font-size:22px;">✅</span>
+                            <div>
+                                <div class="staff-name">${data.name}</div>
+                                <div class="staff-role">${data.role} — ${data.status}</div>
+                                ${warning}
+                            </div>
+                        </div>`;
+                    hiddenNic.value = nic;
+                    submitBtn.disabled = submitProxy.disabled = false;
+                } else {
+                    nameDisplay.innerHTML = `<div class="name-not-found"><span>❌</span> ${data.message || '{{ role_label }} not found'}</div>`;
+                }
+            })
+            .catch(() => {
+                nameDisplay.innerHTML = `<div class="name-not-found"><span>⚠️</span> Lookup failed. Try again.</div>`;
+            });
+    }, 500);
+});
+
+submitProxy.addEventListener('click', function () {
+    if (!submitProxy.disabled) {
+        clockForm.style.display = 'block';
+        submitProxy.style.display = 'none';
+        submitBtn.click();
+    }
+});
+</script>
+</body>
+</html>

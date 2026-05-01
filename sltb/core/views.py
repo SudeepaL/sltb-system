@@ -1,7 +1,8 @@
 import csv
 from django.db import models
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from functools import wraps
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -12,10 +13,232 @@ from urllib.parse import urlencode
 from .forms import BusForm, BusMaintenanceForm, ConductorForm, DriverForm, RouteForm, ScheduleForm, StopForm, TimeTableForm
 from .models import (
     Bus, BusMaintenance, BusRefuelLog, Conductor, DepotFuelTank,
-    Driver, Route, Schedule, RouteStop, Stop, TimeTable, Trip,
+    Driver, Route, Schedule, RouteStop, Stop, StaffAttendance, TimeTable, Trip,
     TripRevenue, PassengerBoardingLog,
 )
 from .revenue_simulator import simulate_trip_revenue, _is_peak
+
+
+
+ROLE_CREDENTIALS = {
+    'admin': {'username': 'admin', 'password': 'admin123', 'label': 'Admin'},
+    'route_manager': {'username': 'routemgr', 'password': 'route123', 'label': 'Route Manager'},
+    'maintenance_manager': {'username': 'maintainmgr', 'password': 'maintain123', 'label': 'Maintenance Manager'},
+}
+
+ROLE_MODULE_ACCESS = {
+    'admin': {
+        'buses': 'full',
+        'drivers': 'full',
+        'conductors': 'full',
+        'manage_routes': 'view',
+        'view_timetable': 'view',
+        'scheduling': 'view',
+        'fuel_usage': 'full',
+        'maintenance': 'view',
+        'current_trips': 'full',
+        'revenue': 'full',
+        'maintenance_reports': 'full',
+        'admin_attendance': 'full',
+    },
+    'route_manager': {
+        'manage_routes': 'full',
+        'view_timetable': 'full',
+        'scheduling': 'full',
+    },
+    'maintenance_manager': {
+        'maintenance': 'full',
+        'maintenance_reports': 'full',
+    },
+}
+
+
+def _current_role(request):
+    role = request.session.get('user_role')
+    return role if role in ROLE_MODULE_ACCESS else None
+
+
+def _has_access(request, module_key, required='view'):
+    role = _current_role(request)
+    if not role:
+        return False
+
+    access = ROLE_MODULE_ACCESS[role].get(module_key)
+    if required == 'view':
+        return access in {'view', 'full'}
+    return access == 'full'
+
+
+def _authorize(request, module_key, required='view'):
+    if not _current_role(request):
+        return redirect('login')
+    if not _has_access(request, module_key, required=required):
+        return HttpResponseForbidden('Access denied for this module.')
+    return None
+
+
+def _role_required(module_key, required='view'):
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapped(request, *args, **kwargs):
+            blocked = _authorize(request, module_key, required=required)
+            if blocked:
+                return blocked
+            return view_func(request, *args, **kwargs)
+        return wrapped
+    return decorator
+
+
+def login_view(request):
+    error_message = ''
+    if request.method == 'POST':
+        selected_role = request.POST.get('role')
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
+
+        credential = ROLE_CREDENTIALS.get(selected_role)
+        if credential and username == credential['username'] and password == credential['password']:
+            request.session['user_role'] = selected_role
+            request.session['display_role'] = credential['label']
+            return redirect('role_dashboard')
+        error_message = 'Invalid role, username, or password.'
+
+    return render(request, 'core/login.html', {'error_message': error_message})
+
+
+def logout_view(request):
+    request.session.flush()
+    return redirect('login')
+
+
+def home(request):
+    role = _current_role(request)
+    if not role:
+        return redirect('login')
+    return redirect('role_dashboard')
+
+
+def role_dashboard(request):
+    role = _current_role(request)
+    if not role:
+        return redirect('login')
+
+    today = timezone.now().date()
+    ctx = {
+        'role': role,
+        'display_role': request.session.get('display_role', ''),
+        'module_buttons': _module_buttons(request, 'dashboard'),
+        'logout_url': reverse('logout'),
+    }
+
+    if role == 'admin':
+        buses         = Bus.objects.all()
+        total_buses   = buses.count()
+        avail_buses   = buses.filter(status='AVAILABLE').count()
+        onroute_buses = buses.filter(status='ON_ROUTE').count()
+        maint_buses   = buses.filter(status='MAINTENANCE').count()
+
+        trips_today      = Trip.objects.filter(schedule__date=today)
+        completed_trips  = trips_today.filter(t_status='COMPLETED').count()
+        ongoing_trips    = trips_today.filter(t_status='ONGOING').count()
+        delayed_trips    = trips_today.filter(t_status='DELAYED').count()
+
+        drivers_on_route   = Driver.objects.filter(driver_status='ON_ROUTE').count()
+        conductors_on_duty = Conductor.objects.filter(conductor_status='ON_DUTY').count()
+
+        from django.db.models import Sum
+        revenue_today = TripRevenue.objects.filter(
+            trip__schedule__date=today
+        ).aggregate(total=Sum('total_revenue'))['total'] or 0
+
+        tank         = DepotFuelTank.get_tank()
+        active_maint = BusMaintenance.objects.filter(maintenance_status='IN_SERVICE').count()
+
+        overdue_buses = Bus.objects.filter(
+            maintenance_records__maintenance_status='COMPLETED',
+            mileage__gt=models.F('maintenance_records__next_service_due_mileage'),
+        ).distinct().count()
+
+        recent_trips = Trip.objects.select_related(
+            'schedule__bus', 'schedule__timetable__route'
+        ).filter(schedule__date=today).order_by('-schedule__timetable__departure_time')[:5]
+
+        attendance_today = StaffAttendance.objects.select_related(
+            'driver', 'conductor'
+        ).filter(clock_in_time__date=today).order_by('-clock_in_time')[:10]
+
+        ctx.update({
+            'total_buses': total_buses, 'avail_buses': avail_buses,
+            'onroute_buses': onroute_buses, 'maint_buses': maint_buses,
+            'trips_today': trips_today.count(), 'completed_trips': completed_trips,
+            'ongoing_trips': ongoing_trips, 'delayed_trips': delayed_trips,
+            'drivers_on_route': drivers_on_route, 'conductors_on_duty': conductors_on_duty,
+            'revenue_today': revenue_today, 'tank': tank,
+            'tank_pct': round(tank.percentage()),
+            'active_maint': active_maint, 'overdue_buses': overdue_buses,
+            'recent_trips': recent_trips,
+            'attendance_today': attendance_today,
+        })
+
+    elif role == 'route_manager':
+        routes        = Route.objects.all()
+        total_routes  = routes.count()
+        timetables    = TimeTable.objects.all()
+        total_tt      = timetables.count()
+        outbound_tt   = timetables.filter(direction='OUTBOUND').count()
+        return_tt     = timetables.filter(direction='RETURN').count()
+
+        today_scheds     = Schedule.objects.filter(date=today)
+        total_today      = today_scheds.count()
+        unassigned_today = today_scheds.filter(
+            models.Q(bus=None) | models.Q(driver=None) | models.Q(conductor=None)
+        ).count()
+        assigned_today   = total_today - unassigned_today
+        routes_no_tt     = routes.filter(timetable__isnull=True).count()
+
+        problem_schedules = Schedule.objects.select_related(
+            'timetable__route', 'bus', 'driver', 'conductor'
+        ).filter(date=today).filter(
+            models.Q(bus=None) | models.Q(driver=None) | models.Q(conductor=None)
+        )[:5]
+
+        ctx.update({
+            'total_routes': total_routes, 'total_tt': total_tt,
+            'outbound_tt': outbound_tt, 'return_tt': return_tt,
+            'total_today': total_today, 'assigned_today': assigned_today,
+            'unassigned_today': unassigned_today, 'routes_no_tt': routes_no_tt,
+            'problem_schedules': problem_schedules,
+        })
+
+    elif role == 'maintenance_manager':
+        from django.db.models import Sum
+        month_start = today.replace(day=1)
+
+        active_jobs    = BusMaintenance.objects.filter(maintenance_status='IN_SERVICE').select_related('bus')
+        active_count   = active_jobs.count()
+
+        completed_qs     = BusMaintenance.objects.filter(
+            maintenance_status='COMPLETED',
+            actual_completion_date__date__gte=month_start,
+        )
+        completed_count  = completed_qs.count()
+        cost_this_month  = completed_qs.aggregate(total=Sum('actual_cost'))['total'] or 0
+
+        overdue_qs    = Bus.objects.filter(
+            maintenance_records__maintenance_status='COMPLETED',
+            mileage__gt=models.F('maintenance_records__next_service_due_mileage'),
+        ).distinct()
+        overdue_count = overdue_qs.count()
+
+        ctx.update({
+            'active_jobs': active_jobs, 'active_count': active_count,
+            'completed_count': completed_count, 'cost_this_month': cost_this_month,
+            'overdue_count': overdue_count, 'overdue_buses': overdue_qs[:5],
+            'month_name': today.strftime('%B'),
+        })
+
+    return render(request, 'core/role_dashboard.html', ctx)
+
 
 MAINTENANCE_CHATBOT_RULES = [
     {
@@ -96,23 +319,41 @@ def _maintenance_recommendations(issue_text):
         ],
     }
 
-def _module_buttons(active_module):
-    items = [
-        
-        {'label': 'Buses',         'url': reverse('bus_dashboard'),       'key': 'buses'},
-        {'label': 'Drivers',       'url': reverse('driver_dashboard'),    'key': 'drivers'},
-        {'label': 'Conductors',    'url': reverse('conductor_dashboard'), 'key': 'conductors'},
-        {'label': 'Manage Routes', 'url': reverse('route_dashboard'),     'key': 'manage_routes'},
-        {'label': 'Manage Timetable','url': reverse('timetable_dashboard'), 'key': 'view_timetable'},
-        {'label': 'Manage Schedules',    'url': reverse('scheduling_dashboard'),'key': 'scheduling'},
-        {'label': 'Fuel Usage',    'url': reverse('fuel_dashboard'),      'key': 'fuel_usage'},
-        {'label': 'Maintenance',   'url': reverse('maintenance_dashboard'),'key': 'maintenance'},
-        {'label': 'Current Trips', 'url': reverse('bus_trip_welcome'),    'key': 'current_trips'},
-        {'label': 'Revenue',       'url': reverse('revenue_dashboard'),   'key': 'revenue'},
+def _module_buttons(request, active_module):
+    role = _current_role(request)
+    if not role:
+        return []
+
+    # Dashboard is always first for every role
+    visible_items = [
+        {
+            'label': 'Dashboard',
+            'url': reverse('role_dashboard'),
+            'key': 'dashboard',
+            'is_active': active_module == 'dashboard',
+        }
     ]
+
+    items = [
+        {'label': 'Buses', 'url': reverse('bus_dashboard'), 'key': 'buses'},
+        {'label': 'Drivers', 'url': reverse('driver_dashboard'), 'key': 'drivers'},
+        {'label': 'Conductors', 'url': reverse('conductor_dashboard'), 'key': 'conductors'},
+        {'label': 'Manage Routes', 'url': reverse('route_dashboard'), 'key': 'manage_routes'},
+        {'label': 'Manage Timetables', 'url': reverse('timetable_dashboard'), 'key': 'view_timetable'},
+        {'label': 'Manage Schedules', 'url': reverse('scheduling_dashboard'), 'key': 'scheduling'},
+        {'label': 'Fuel Usage', 'url': reverse('fuel_dashboard'), 'key': 'fuel_usage'},
+        {'label': 'Maintenance', 'url': reverse('admin_maintenance_overview') if role == 'admin' else reverse('maintenance_dashboard'), 'key': 'maintenance'},
+        {'label': 'Current Trips', 'url': reverse('bus_trip_welcome'), 'key': 'current_trips'},
+        {'label': 'Revenue', 'url': reverse('revenue_dashboard'), 'key': 'revenue'},
+        {'label': 'Attendance', 'url': reverse('attendance_dashboard'), 'key': 'admin_attendance'},
+    ]
+
     for item in items:
-        item['is_active'] = item['key'] == active_module
-    return items
+        if _has_access(request, item['key'], required='view'):
+            item['is_active'] = item['key'] == active_module
+            visible_items.append(item)
+
+    return visible_items
 
 
 # ── Revenue helpers ───────────────────────────────────────────────────────────
@@ -165,22 +406,10 @@ def _get_bus_trip_rows():
                 'schedule__timetable__route',
             )
             .filter(schedule__bus=bus)
-            .exclude(t_status='COMPLETED')
+            .filter(t_status__in=['ONGOING', 'DELAYED'])
             .order_by('-actual_departure_time', '-id')
             .first()
         )
-
-        if not current_trip:
-            current_trip = (
-                Trip.objects.select_related(
-                    'schedule__driver',
-                    'schedule__conductor',
-                    'schedule__timetable__route',
-                )
-                .filter(schedule__bus=bus)
-                .order_by('-actual_departure_time', '-id')
-                .first()
-            )
 
         schedule_label = '-'
         route_number = '-'
@@ -208,7 +437,7 @@ def _get_bus_trip_rows():
 
     return rows
 
-
+@_role_required('buses', 'view')
 def bus_dashboard(request):
     selected_bus_id = request.GET.get('bus')
     bus_rows = _get_bus_trip_rows()
@@ -257,7 +486,7 @@ def bus_dashboard(request):
         'available_buses': Bus.objects.filter(status='AVAILABLE').count(),
         'on_route_buses': on_route_count,
         'maintenance_buses': maintenance_count,
-        'module_buttons': _module_buttons('buses'),
+        'module_buttons': _module_buttons(request, 'buses'),
         'capacity_filter': capacity_filter,
         'bus_type_filter': bus_type_filter,
         'status_filter': status_filter,
@@ -283,21 +512,10 @@ def _get_driver_rows(gender_filter=None, status_filter=None):
                 'schedule__timetable__route',
             )
             .filter(schedule__driver=driver)
-            .exclude(t_status='COMPLETED')
+            .filter(t_status__in=['ONGOING', 'DELAYED'])
             .order_by('-actual_departure_time', '-id')
             .first()
         )
-
-        if not current_trip:
-            current_trip = (
-                Trip.objects.select_related(
-                    'schedule__conductor',
-                    'schedule__timetable__route',
-                )
-                .filter(schedule__driver=driver)
-                .order_by('-actual_departure_time', '-id')
-                .first()
-            )
 
         schedule_label = '-'
         conductor_name = '-'
@@ -317,7 +535,7 @@ def _get_driver_rows(gender_filter=None, status_filter=None):
 
     return rows
 
-
+@_role_required('drivers', 'view')
 def driver_dashboard(request):
     selected_driver_id = request.GET.get('driver')
     gender_filter = request.GET.get('gender_filter', '')
@@ -346,7 +564,7 @@ def driver_dashboard(request):
         'available_drivers': Driver.objects.filter(driver_status='AVAILABLE').count(),
         'on_route_drivers': Driver.objects.filter(driver_status='ON_ROUTE').count(),
         'off_duty_drivers': Driver.objects.filter(driver_status='OFF_DUTY').count(),
-        'module_buttons': _module_buttons('drivers'),
+        'module_buttons': _module_buttons(request, 'drivers'),
         'gender_filter': gender_filter,
         'status_filter': status_filter,
         'filter_query': filter_query,
@@ -370,21 +588,10 @@ def _get_conductor_rows(gender_filter=None, status_filter=None):
                 'schedule__timetable__route',
             )
             .filter(schedule__conductor=conductor)
-            .exclude(t_status='COMPLETED')
+            .filter(t_status__in=['ONGOING', 'DELAYED'])
             .order_by('-actual_departure_time', '-id')
             .first()
         )
-
-        if not current_trip:
-            current_trip = (
-                Trip.objects.select_related(
-                    'schedule__driver',
-                    'schedule__timetable__route',
-                )
-                .filter(schedule__conductor=conductor)
-                .order_by('-actual_departure_time', '-id')
-                .first()
-            )
 
         schedule_label = '-'
         driver_name = '-'
@@ -404,7 +611,7 @@ def _get_conductor_rows(gender_filter=None, status_filter=None):
 
     return rows
 
-
+@_role_required('conductors', 'view')
 def conductor_dashboard(request):
     selected_conductor_id = request.GET.get('conductor')
     gender_filter = request.GET.get('gender_filter', '')
@@ -433,7 +640,7 @@ def conductor_dashboard(request):
         'available_conductors': Conductor.objects.filter(conductor_status='AVAILABLE').count(),
         'on_duty_conductors': Conductor.objects.filter(conductor_status='ON_DUTY').count(),
         'off_duty_conductors': Conductor.objects.filter(conductor_status='OFF_DUTY').count(),
-        'module_buttons': _module_buttons('conductors'),
+        'module_buttons': _module_buttons(request, 'conductors'),
         'gender_filter': gender_filter,
         'status_filter': status_filter,
         'filter_query': filter_query,
@@ -441,6 +648,70 @@ def conductor_dashboard(request):
     return render(request, 'core/conductor_dashboard.html', context)
 
 
+# ── AJAX detail endpoints ─────────────────────────────────────────────────────
+
+@_role_required('buses', 'view')
+def bus_detail_json(request, bus_id):
+    bus = get_object_or_404(Bus, id=bus_id)
+    data = {
+        'id': bus.id,
+        'bus_number': bus.bus_number,
+        'bus_code': bus.bus_code,
+        'model': bus.model or '-',
+        'bus_type': bus.get_bus_type_display(),
+        'fuel_capacity_liters': bus.fuel_capacity_liters,
+        'current_fuel_liters': bus.current_fuel_liters,
+        'capacity': bus.capacity,
+        'mileage': bus.mileage,
+        'status': bus.get_status_display(),
+        'depot': str(bus.depot) if bus.depot else '-',
+        'fuel_efficiency': bus.fuel_efficiency_km_per_liter,
+        'image_url': bus.image.url if bus.image else None,
+        'manage_url': reverse('manage_bus', args=[bus.id]),
+    }
+    return JsonResponse(data)
+
+
+@_role_required('drivers', 'view')
+def driver_detail_json(request, driver_id):
+    driver = get_object_or_404(Driver, id=driver_id)
+    data = {
+        'id': driver.id,
+        'driver_name': driver.driver_name,
+        'nic_number': driver.nic_number,
+        'driving_license_number': driver.driving_license_number,
+        'dob': str(driver.dob) if driver.dob else '-',
+        'gender': driver.get_gender_display(),
+        'phone_number': driver.phone_number,
+        'email': driver.email or '-',
+        'driver_address': driver.driver_address or '-',
+        'status': driver.get_driver_status_display(),
+        'image_url': driver.driver_id_image.url if driver.driver_id_image else None,
+        'manage_url': reverse('manage_driver', args=[driver.id]),
+    }
+    return JsonResponse(data)
+
+
+@_role_required('conductors', 'view')
+def conductor_detail_json(request, conductor_id):
+    conductor = get_object_or_404(Conductor, id=conductor_id)
+    data = {
+        'id': conductor.id,
+        'conductor_name': conductor.conductor_name,
+        'c_nic_number': conductor.c_nic_number,
+        'c_dob': str(conductor.c_dob) if conductor.c_dob else '-',
+        'gender': conductor.get_c_gender_display(),
+        'c_phone_number': conductor.c_phone_number,
+        'c_email': conductor.c_email or '-',
+        'conductor_address': conductor.conductor_address or '-',
+        'status': conductor.get_conductor_status_display(),
+        'image_url': conductor.conductor_id_image.url if conductor.conductor_id_image else None,
+        'manage_url': reverse('manage_conductor', args=[conductor.id]),
+    }
+    return JsonResponse(data)
+
+
+@_role_required('buses', 'full')
 def manage_bus(request, bus_id):
     bus = get_object_or_404(Bus, id=bus_id)
 
@@ -459,10 +730,11 @@ def manage_bus(request, bus_id):
     return render(
         request,
         'core/manage_bus.html',
-        {'form': form, 'bus': bus, 'module_buttons': _module_buttons('buses')},
+        {'form': form, 'bus': bus, 'module_buttons': _module_buttons(request, 'buses')},
     )
 
 
+@_role_required('buses', 'full')
 def add_bus(request):
     if request.method == 'POST':
         form = BusForm(request.POST, request.FILES)
@@ -475,10 +747,11 @@ def add_bus(request):
     return render(
         request,
         'core/add_bus.html',
-        {'form': form, 'module_buttons': _module_buttons('buses')},
+        {'form': form, 'module_buttons': _module_buttons(request, 'buses')},
     )
 
 
+@_role_required('drivers', 'full')
 def manage_driver(request, driver_id):
     driver = get_object_or_404(Driver, id=driver_id)
 
@@ -497,10 +770,11 @@ def manage_driver(request, driver_id):
     return render(
         request,
         'core/manage_driver.html',
-        {'form': form, 'driver': driver, 'module_buttons': _module_buttons('drivers')},
+        {'form': form, 'driver': driver, 'module_buttons': _module_buttons(request, 'drivers')},
     )
 
 
+@_role_required('drivers', 'full')
 def add_driver(request):
     if request.method == 'POST':
         form = DriverForm(request.POST, request.FILES)
@@ -513,10 +787,11 @@ def add_driver(request):
     return render(
         request,
         'core/add_driver.html',
-        {'form': form, 'module_buttons': _module_buttons('drivers')},
+        {'form': form, 'module_buttons': _module_buttons(request, 'drivers')},
     )
 
 
+@_role_required('conductors', 'full')
 def manage_conductor(request, conductor_id):
     conductor = get_object_or_404(Conductor, id=conductor_id)
 
@@ -535,10 +810,11 @@ def manage_conductor(request, conductor_id):
     return render(
         request,
         'core/manage_conductor.html',
-        {'form': form, 'conductor': conductor, 'module_buttons': _module_buttons('conductors')},
+        {'form': form, 'conductor': conductor, 'module_buttons': _module_buttons(request, 'conductors')},
     )
 
 
+@_role_required('conductors', 'full')
 def add_conductor(request):
     if request.method == 'POST':
         form = ConductorForm(request.POST, request.FILES)
@@ -551,18 +827,21 @@ def add_conductor(request):
     return render(
         request,
         'core/add_conductor.html',
-        {'form': form, 'module_buttons': _module_buttons('conductors')},
+        {'form': form, 'module_buttons': _module_buttons(request, 'conductors')},
     )
 
 
+@_role_required('manage_routes', 'view')
 def route_dashboard(request):
     routes = Route.objects.order_by('route_number')
     context = {
         'routes': routes,
-        'module_buttons': _module_buttons('manage_routes'),
+        'module_buttons': _module_buttons(request, 'manage_routes'),
+        'can_manage_routes': _has_access(request, 'manage_routes', required='full'),
     }
     return render(request, 'core/route_dashboard.html', context)
 
+@_role_required('manage_routes', 'full')
 def add_route(request):
     if request.method == 'POST':
         form = RouteForm(request.POST)
@@ -575,7 +854,7 @@ def add_route(request):
     return render(
         request,
         'core/add_route.html',
-        {'form': form, 'module_buttons': _module_buttons('manage_routes')},
+        {'form': form, 'module_buttons': _module_buttons(request, 'manage_routes')},
     )
 
 
@@ -583,6 +862,8 @@ def manage_route_stops(request, route_id):
     route = get_object_or_404(Route, id=route_id)
 
     if request.method == 'POST':
+        if not _has_access(request, 'manage_routes', required='full'):
+            return HttpResponseForbidden('You have view-only access for route management.')
         stop_id_list = request.POST.getlist('ordered_stop_ids')
 
         RouteStop.objects.filter(route=route).delete()
@@ -604,12 +885,16 @@ def manage_route_stops(request, route_id):
         'route': route,
         'route_stops': route_stops,
         'all_stops': Stop.objects.order_by('stop_name'),
-        'module_buttons': _module_buttons('manage_routes'),
+        'module_buttons': _module_buttons(request, 'manage_routes'),
+        'can_manage_routes': _has_access(request, 'manage_routes', required='full'),
     }
     return render(request, 'core/manage_route_stops.html', context)
 
+@_role_required('view_timetable', 'view')
 def timetable_dashboard(request):
     if request.method == 'POST' and 'delete_timetable' in request.POST:
+        if not _has_access(request, 'view_timetable', required='full'):
+             return HttpResponseForbidden('You have view-only access for timetables.')
         timetable_id = request.POST.get('timetable_id')
         timetable = get_object_or_404(TimeTable, id=timetable_id)
         timetable.delete()
@@ -626,11 +911,13 @@ def timetable_dashboard(request):
         'outbound_count': timetables.filter(direction='OUTBOUND').count(),
         'return_count': timetables.filter(direction='RETURN').count(),
         'routes_count': routes_covered,
-        'module_buttons': _module_buttons('view_timetable'),
+        'module_buttons': _module_buttons(request, 'view_timetable'),
+        'can_manage_timetables': _has_access(request, 'view_timetable', required='full'),
     }
     return render(request, 'core/timetable_dashboard.html', context)
 
 
+@_role_required('view_timetable', 'full')
 def add_timetable(request):
     if request.method == 'POST':
         form = TimeTableForm(request.POST)
@@ -643,10 +930,10 @@ def add_timetable(request):
     return render(
         request,
         'core/add_timetable.html',
-        {'form': form, 'module_buttons': _module_buttons('view_timetable')},
+        {'form': form, 'module_buttons': _module_buttons(request, 'view_timetable')},
     )
 
-
+@_role_required('manage_routes', 'full')
 def add_stop(request, route_id):
     route = get_object_or_404(Route, id=route_id)
 
@@ -664,34 +951,59 @@ def add_stop(request, route_id):
         {
             'form': form,
             'route': route,
-            'module_buttons': _module_buttons('manage_routes'),
+            'module_buttons': _module_buttons(request, 'manage_routes'),
         },
     )
 
+@_role_required('scheduling', 'view')
 def scheduling_dashboard(request):
     if request.method == 'POST' and 'delete_schedule' in request.POST:
+        if not _has_access(request, 'scheduling', required='full'):
+            return HttpResponseForbidden('You have view-only access for schedules.')
         schedule_id = request.POST.get('schedule_id')
         schedule = get_object_or_404(Schedule, id=schedule_id)
         schedule.delete()
         return redirect('scheduling_dashboard')
 
-    schedules = Schedule.objects.select_related(
+    from datetime import date as date_today
+    today = date_today.today()
+
+    # Determine which view the user wants: today (default), past, or future
+    view_mode = request.GET.get('view', 'today')
+
+    all_schedules = Schedule.objects.select_related(
         'timetable__route', 'bus', 'driver', 'conductor'
-    ).order_by('-date', 'timetable__departure_time')
+    )
+
+    if view_mode == 'past':
+        schedules = all_schedules.filter(date__lt=today).order_by('-date', 'timetable__departure_time')
+        view_title = 'Past Schedules'
+    elif view_mode == 'future':
+        schedules = all_schedules.filter(date__gt=today).order_by('date', 'timetable__departure_time')
+        view_title = 'Future Schedules'
+    else:
+        view_mode = 'today'
+        schedules = all_schedules.filter(date=today).order_by('timetable__departure_time')
+        view_title = "Today's Schedules"
 
     context = {
         'schedules': schedules,
+        'view_mode': view_mode,
+        'view_title': view_title,
+        'today': today,
         'total_schedules': schedules.count(),
         'scheduled_count': schedules.filter(status='SCHEDULED').count(),
         'ongoing_count': schedules.filter(status='ONGOING').count(),
         'delayed_count': schedules.filter(status='DELAYED').count(),
         'completed_count': schedules.filter(status='COMPLETED').count(),
         'cancelled_count': schedules.filter(status='CANCELLED').count(),
-        'module_buttons': _module_buttons('scheduling'),
+        'module_buttons': _module_buttons(request, 'scheduling'),
+        'can_manage_schedules': _has_access(request, 'scheduling', required='full'),
     }
     return render(request, 'core/scheduling_dashboard.html', context)
 
 
+@_role_required('scheduling', 'full')
 def add_schedule(request):
     if request.method == 'POST':
         form = ScheduleForm(request.POST)
@@ -704,10 +1016,11 @@ def add_schedule(request):
     return render(
         request,
         'core/add_schedule.html',
-        {'form': form, 'module_buttons': _module_buttons('scheduling')},
+        {'form': form, 'module_buttons': _module_buttons(request, 'scheduling')},
     )
 
 
+@_role_required('scheduling', 'view')
 def get_schedule_resource_data(request):
     """
     AJAX endpoint: returns buses, drivers, conductors with statuses,
@@ -903,6 +1216,7 @@ def get_schedule_resource_data(request):
     })
 
 
+@_role_required('maintenance', 'view')
 def maintenance_dashboard(request):
     buses = Bus.objects.order_by('bus_code')
     selected_bus_code = request.GET.get('bus_code', '')
@@ -915,6 +1229,8 @@ def maintenance_dashboard(request):
             service_history = BusMaintenance.objects.filter(bus=selected_bus).order_by('-service_date', '-created_at')
 
     if request.method == 'POST':
+        if not _has_access(request, 'maintenance', required='full'):
+            return HttpResponseForbidden('You have view-only access for maintenance.')
         if 'add_bus_to_service' in request.POST:
             bus_code = request.POST.get('bus_code_hidden', '')
             bus = Bus.objects.filter(bus_code=bus_code).first()
@@ -958,11 +1274,62 @@ def maintenance_dashboard(request):
         'completed_records': completed_records,
         'filter_date_from': filter_date_from,
         'filter_date_to': filter_date_to,
-        'module_buttons': _module_buttons('maintenance'),
+        'module_buttons': _module_buttons(request, 'maintenance'),
+        'can_manage_maintenance': _has_access(request, 'maintenance', required='full'),
     }
     return render(request, 'core/maintenance_dashboard.html', context)
 
 
+
+@_role_required('maintenance', 'view')
+def admin_maintenance_overview(request):
+    """
+    For admin users: renders the maintenance manager's dashboard view
+    (role_dashboard.html with role='maintenance_manager' context),
+    while keeping the admin's own navbar module buttons.
+    """
+    role = _current_role(request)
+    if not role:
+        return redirect('login')
+
+    today = timezone.now().date()
+    month_start = today.replace(day=1)
+
+    from django.db.models import Sum
+
+    active_jobs   = BusMaintenance.objects.filter(maintenance_status='IN_SERVICE').select_related('bus')
+    active_count  = active_jobs.count()
+
+    completed_qs    = BusMaintenance.objects.filter(
+        maintenance_status='COMPLETED',
+        actual_completion_date__date__gte=month_start,
+    )
+    completed_count = completed_qs.count()
+    cost_this_month = completed_qs.aggregate(total=Sum('actual_cost'))['total'] or 0
+
+    overdue_qs    = Bus.objects.filter(
+        maintenance_records__maintenance_status='COMPLETED',
+        mileage__gt=models.F('maintenance_records__next_service_due_mileage'),
+    ).distinct()
+    overdue_count = overdue_qs.count()
+
+    ctx = {
+        'role': 'maintenance_manager',
+        'display_role': request.session.get('display_role', ''),
+        'module_buttons': _module_buttons(request, 'maintenance'),
+        'logout_url': reverse('logout'),
+        'active_jobs': active_jobs,
+        'active_count': active_count,
+        'completed_count': completed_count,
+        'cost_this_month': cost_this_month,
+        'overdue_count': overdue_count,
+        'overdue_buses': overdue_qs[:5],
+        'month_name': today.strftime('%B'),
+    }
+    return render(request, 'core/role_dashboard.html', ctx)
+
+
+@_role_required('maintenance_reports', 'view')
 def maintenance_report_csv(request):
     """Generate a CSV report of completed maintenance records filtered by the same date range."""
     completed_records = BusMaintenance.objects.select_related('bus').filter(
@@ -1048,6 +1415,7 @@ def maintenance_report_csv(request):
     return response
 
 
+@_role_required('maintenance', 'full')
 def complete_maintenance(request, record_id):
     from django.utils import timezone as tz
     if request.method == 'POST':
@@ -1065,7 +1433,7 @@ def complete_maintenance(request, record_id):
         bus.save(update_fields=['status'])
     return redirect(reverse('maintenance_dashboard'))
 
-
+@_role_required('maintenance', 'view')
 def get_bus_mileage(request):
     bus_code = request.GET.get('bus_code', '')
     try:
@@ -1075,6 +1443,7 @@ def get_bus_mileage(request):
         return JsonResponse({'mileage': 0, 'found': False})
 
 @require_POST
+@_role_required('maintenance', 'view')
 def maintenance_chatbot(request):
     issue = request.POST.get('issue', '')
     recommendation = _maintenance_recommendations(issue)
@@ -1085,6 +1454,8 @@ def maintenance_chatbot(request):
         'note': 'These are guidance suggestions. Confirm safety-critical repairs with a qualified mechanic.',
     })
 
+
+@_role_required('scheduling', 'view')
 def get_outbound_for_return(request):
     """
     AJAX endpoint: given a RETURN timetable ID and a date, returns the
@@ -1144,6 +1515,7 @@ def get_outbound_for_return(request):
     })
 
 
+@_role_required('maintenance', 'full')
 def add_maintenance(request):
     if request.method == 'POST':
         form = BusMaintenanceForm(request.POST)
@@ -1156,18 +1528,20 @@ def add_maintenance(request):
     return render(
         request,
         'core/add_maintenance.html',
-        {'form': form, 'module_buttons': _module_buttons('maintenance')},
+        {'form': form, 'module_buttons': _module_buttons(request, 'maintenance')},
     )
 
+@_role_required('current_trips', 'view')
 def bus_trip_welcome(request):
     buses = Bus.objects.order_by('bus_code')
     context = {
         'buses': buses,
-        'module_buttons': _module_buttons('current_trips'),
+        'module_buttons': _module_buttons(request, 'current_trips'),
     }
     return render(request, 'core/bus_trip_welcome.html', context)
 
 
+@_role_required('current_trips', 'view')
 def driver_conductor_confirmation(request, bus_id):
     bus = get_object_or_404(Bus, id=bus_id)
     error_message = ''
@@ -1194,11 +1568,12 @@ def driver_conductor_confirmation(request, bus_id):
     context = {
         'bus': bus,
         'error_message': error_message,
-        'module_buttons': _module_buttons('current_trips'),
+        'module_buttons': _module_buttons(request, 'current_trips'),
     }
     return render(request, 'core/driver_conductor_confirmation.html', context)
 
 
+@_role_required('current_trips', 'view')
 def current_schedules(request, bus_id):
     bus = get_object_or_404(Bus, id=bus_id)
 
@@ -1221,7 +1596,7 @@ def current_schedules(request, bus_id):
     context = {
         'bus': bus,
         'schedules': schedules,
-        'module_buttons': _module_buttons('current_trips'),
+        'module_buttons': _module_buttons(request, 'current_trips'),
         'tank': tank,
         'bus_fuel_pct': round(bus_fuel_pct, 1),
         'max_bus_capacity': max_bus_capacity,
@@ -1239,6 +1614,7 @@ def _combine_schedule_datetime(schedule_date, time_text):
     return timezone.make_aware(naive_datetime, timezone.get_current_timezone())
 
 
+@_role_required('current_trips', 'full')
 def start_trip(request, schedule_id):
     schedule = get_object_or_404(
         Schedule.objects.select_related('bus', 'driver', 'conductor', 'timetable__route'),
@@ -1299,13 +1675,14 @@ def start_trip(request, schedule_id):
         'trip': trip,
         'error_message': error_message,
         'delay_elapsed_seconds': delay_elapsed_seconds,
-        'module_buttons': _module_buttons('current_trips'),
+        'module_buttons': _module_buttons(request, 'current_trips'),
         'is_peak': is_peak,
     }
     return render(request, 'core/start_trip.html', context)
 
 
 # ── Fuel Dashboard ────────────────────────────────────────
+@_role_required('fuel_usage', 'view')
 def fuel_dashboard(request):
     import json
     from collections import defaultdict
@@ -1374,7 +1751,7 @@ def fuel_dashboard(request):
         'fill_pct': fill_pct,
         'fuel_status': fuel_status,
         'just_refilled': just_refilled,
-        'module_buttons': _module_buttons('fuel_usage'),
+        'module_buttons': _module_buttons(request, 'fuel_usage'),
         'refuel_logs': refuel_logs,
         'bus_refuel_summary_json': json.dumps(bus_refuel_summary),
         'bus_fuel_data_json': json.dumps(bus_fuel_data),
@@ -1393,6 +1770,7 @@ def fuel_dashboard(request):
     return render(request, 'core/fuel_dashboard.html', context)
 
 
+@_role_required('fuel_usage', 'view')
 def fuel_refuel_log_report_csv(request):
     """Generate a CSV report of the Bus Refuel Log, respecting active filters."""
     log_date_from = request.GET.get('log_date_from', '').strip()
@@ -1446,6 +1824,7 @@ def fuel_refuel_log_report_csv(request):
     return response
 
 
+@_role_required('fuel_usage', 'view')
 def fuel_refuel_history_report_csv(request):
     """Generate a CSV report of the Refuel History by Bus chart data, respecting active filters."""
     from collections import defaultdict
@@ -1493,6 +1872,7 @@ def fuel_refuel_history_report_csv(request):
     return response
 
 
+@_role_required('fuel_usage', 'full')
 def fuel_refill(request):
     if request.method == 'POST':
         tank = DepotFuelTank.get_tank()
@@ -1521,6 +1901,7 @@ def fuel_refill(request):
     return redirect('fuel_dashboard')
 
 
+@_role_required('fuel_usage', 'full')
 def bus_refuel(request, bus_id):
     """Refuel a specific bus from the depot tank. Called from current_schedules page."""
     import json
@@ -1594,6 +1975,7 @@ def bus_refuel(request, bus_id):
 
 # ── Revenue views ─────────────────────────────────────────────────────────────
 
+@_role_required('revenue', 'view')
 def revenue_dashboard(request):
     """Overview dashboard: per-trip revenue cards + summary stats."""
     from django.db.models import Sum, Count, Avg
@@ -1656,11 +2038,12 @@ def revenue_dashboard(request):
         'summary': summary,
         'route_breakdown': list(route_breakdown),
         'bus_breakdown': list(bus_breakdown),
-        'module_buttons': _module_buttons('revenue'),
+        'module_buttons': _module_buttons(request, 'revenue'),
     }
     return render(request, 'core/revenue_dashboard.html', context)
 
 
+@_role_required('revenue', 'view')
 def trip_revenue_detail(request, trip_id):
     """Per-trip breakdown: stop-by-stop boarding log."""
     trip = get_object_or_404(
@@ -1684,7 +2067,7 @@ def trip_revenue_detail(request, trip_id):
         'trip': trip,
         'trip_revenue': trip_revenue,
         'boarding_logs': boarding_logs,
-        'module_buttons': _module_buttons('revenue'),
+        'module_buttons': _module_buttons(request, 'revenue'),
     }
     return render(request, 'core/trip_revenue_detail.html', context)
 
@@ -1705,6 +2088,7 @@ def simulate_trip_revenue_view(request, trip_id):
     })
 
 
+@_role_required('revenue', 'view')
 def revenue_api_status(request, trip_id):
     """
     GET – polled every 5 s by the trip page while the trip is ONGOING.
@@ -1754,6 +2138,7 @@ def revenue_api_status(request, trip_id):
         return JsonResponse({'ok': False, 'passengers': 0, 'revenue': 0.0})
 
 
+@_role_required('fuel_usage', 'full')
 def fuel_bus_refuel(request):
     """AJAX endpoint: refuel a bus (or external bus) from the fuel dashboard."""
     from django.http import JsonResponse
@@ -1841,3 +2226,208 @@ def fuel_bus_refuel(request):
             'bus_capacity': int(max_cap),
             'is_external': False,
         })
+
+
+# ── Attendance / Clock-in Clock-out module ────────────────────────────────────
+
+def opening_view(request):
+    """Splash/opening page — no login required."""
+    return render(request, 'core/opening.html')
+
+
+def clock_role_select(request):
+    """Page to choose Driver or Conductor before clocking in/out."""
+    action = request.GET.get('action', 'in')
+    if action not in ('in', 'out'):
+        action = 'in'
+    return render(request, 'core/clock_role_select.html', {
+        'action': action,
+        'action_label': 'clocking in' if action == 'in' else 'clocking out',
+        'page_title': 'Clock In' if action == 'in' else 'Clock Out',
+    })
+
+
+def clock_action(request):
+    """Shows analog clock + NIC input. Handles POST to perform clock-in/out."""
+    action = request.GET.get('action') or request.POST.get('action', 'in')
+    role   = request.GET.get('role')   or request.POST.get('role', 'driver')
+
+    if action not in ('in', 'out'):
+        action = 'in'
+    if role not in ('driver', 'conductor'):
+        role = 'driver'
+
+    role_label = 'Driver' if role == 'driver' else 'Conductor'
+    action_label = 'Clock-In' if action == 'in' else 'Clock-Out'
+
+    ctx = {
+        'action': action,
+        'role': role,
+        'role_label': role_label,
+        'page_title': f'{action_label} as {role_label}',
+        'message': None,
+        'success': False,
+    }
+
+    if request.method == 'POST':
+        nic = request.POST.get('nic', '').strip().upper()
+        message, success = _perform_clock_action(nic, role, action)
+        if success:
+            return redirect('opening')
+        ctx['message'] = message
+        ctx['success'] = False
+
+    return render(request, 'core/clock_action.html', ctx)
+
+
+def _perform_clock_action(nic, role, action):
+    """Core logic: validate NIC, update attendance & status. Returns (message, success)."""
+    if role == 'driver':
+        try:
+            employee = Driver.objects.get(nic_number__iexact=nic)
+        except Driver.DoesNotExist:
+            return ('Driver not found. Please check your NIC number.', False)
+
+        attendance, _ = StaffAttendance.objects.get_or_create(
+            driver=employee,
+            defaults={'status': 'OFF_DUTY'}
+        )
+    else:
+        try:
+            employee = Conductor.objects.get(c_nic_number__iexact=nic)
+        except Conductor.DoesNotExist:
+            return ('Conductor not found. Please check your NIC number.', False)
+
+        attendance, _ = StaffAttendance.objects.get_or_create(
+            conductor=employee,
+            defaults={'status': 'OFF_DUTY'}
+        )
+
+    name = attendance.staff_name
+
+    if action == 'in':
+        attendance.mark_available()
+        return (f'Welcome, {name}! Your shift has started successfully. Status: Available.', True)
+    else:
+        if attendance.status == 'OFF_DUTY' and attendance.clock_in_time is None:
+            return (f'{role.capitalize()} has not clocked in yet today.', False)
+        attendance.mark_off_duty()
+        return (f'Goodbye, {name}! Your shift has ended. Status: Off Duty.', True)
+
+
+def clock_lookup_api(request):
+    """AJAX endpoint: lookup employee by NIC and return name/status."""
+    nic    = request.GET.get('nic', '').strip().upper()
+    role   = request.GET.get('role', 'driver')
+    action = request.GET.get('action', 'in')
+
+    if len(nic) < 9:
+        return JsonResponse({'found': False, 'message': 'NIC too short'})
+
+    if role == 'driver':
+        try:
+            emp = Driver.objects.get(nic_number__iexact=nic)
+        except Driver.DoesNotExist:
+            return JsonResponse({'found': False, 'message': 'Driver not found'})
+        attendance = StaffAttendance.objects.filter(driver=emp).first()
+        status = emp.get_driver_status_display()
+        already_in  = attendance and attendance.status == 'AVAILABLE'
+        already_out = attendance and attendance.status == 'OFF_DUTY' and attendance.clock_out_time is not None
+        return JsonResponse({
+            'found': True,
+            'name': emp.driver_name,
+            'role': 'Driver',
+            'status': status,
+            'already_clocked_in': already_in,
+            'already_clocked_out': already_out,
+        })
+    else:
+        try:
+            emp = Conductor.objects.get(c_nic_number__iexact=nic)
+        except Conductor.DoesNotExist:
+            return JsonResponse({'found': False, 'message': 'Conductor not found'})
+        attendance = StaffAttendance.objects.filter(conductor=emp).first()
+        status = emp.get_conductor_status_display()
+        already_in  = attendance and attendance.status == 'AVAILABLE'
+        already_out = attendance and attendance.status == 'OFF_DUTY' and attendance.clock_out_time is not None
+        return JsonResponse({
+            'found': True,
+            'name': emp.conductor_name,
+            'role': 'Conductor',
+            'status': status,
+            'already_clocked_in': already_in,
+            'already_clocked_out': already_out,
+        })
+
+
+@_role_required('admin_attendance', 'view')
+def attendance_dashboard(request):
+    """Admin view: all attendance records."""
+    from django.db.models import Q
+
+    filter_role   = request.GET.get('role', '')
+    filter_status = request.GET.get('status', '')
+    filter_date   = request.GET.get('date', '')
+
+    qs = StaffAttendance.objects.select_related('driver', 'conductor').order_by('-updated_at')
+
+    if filter_role == 'driver':
+        qs = qs.filter(driver__isnull=False)
+    elif filter_role == 'conductor':
+        qs = qs.filter(conductor__isnull=False)
+
+    if filter_status in ('AVAILABLE', 'OFF_DUTY'):
+        qs = qs.filter(status=filter_status)
+
+    if filter_date:
+        from datetime import date as date_cls
+        try:
+            d = date_cls.fromisoformat(filter_date)
+            qs = qs.filter(clock_in_time__date=d)
+        except ValueError:
+            pass
+
+    total       = qs.count()
+    available   = qs.filter(status='AVAILABLE').count()
+    off_duty    = qs.filter(status='OFF_DUTY').count()
+    drivers_in  = qs.filter(driver__isnull=False, status='AVAILABLE').count()
+    conds_in    = qs.filter(conductor__isnull=False, status='AVAILABLE').count()
+
+    ctx = {
+        'attendance_records': qs,
+        'total': total,
+        'available': available,
+        'off_duty': off_duty,
+        'drivers_in': drivers_in,
+        'conductors_in': conds_in,
+        'filter_role': filter_role,
+        'filter_status': filter_status,
+        'filter_date': filter_date,
+        'module_buttons': _module_buttons(request, 'attendance'),
+    }
+    return render(request, 'core/attendance_dashboard.html', ctx)
+
+
+# ── Route Map Data API ────────────────────────────────────────────────────────
+@_role_required('manage_routes', 'view')
+def route_map_data(request, route_id):
+    """
+    Returns JSON with ordered stops (name, lat, lng) for the given route.
+    Used by the Leaflet / OSRM map on the Route Management dashboard.
+    """
+    route = get_object_or_404(Route, id=route_id)
+    route_stops = (
+        RouteStop.objects.select_related('stop')
+        .filter(route=route)
+        .order_by('order')
+    )
+    stops = [
+        {
+            'name'  : rs.stop.stop_name,
+            'lat'   : rs.stop.latitude,
+            'lng'   : rs.stop.longitude,
+            'order' : rs.order,
+        }
+        for rs in route_stops
+    ]
+    return JsonResponse({'route_id': route_id, 'stops': stops})

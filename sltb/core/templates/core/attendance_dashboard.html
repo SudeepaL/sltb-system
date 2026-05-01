@@ -1,0 +1,280 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance — SLTB Kandy South</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
+    <style>
+        .dash-wrap { max-width: 1200px; margin: 28px auto; padding: 0 20px 80px; }
+        .dash-heading { font-size: 26px; font-weight: 900; color: var(--blue-dark); margin-bottom: 4px; }
+        .dash-sub { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 18px 20px;
+        }
+        .sc-label {
+            font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 6px;
+        }
+        .sc-value { font-size: 28px; font-weight: 900; color: var(--blue-dark); line-height: 1; }
+        .sc-detail { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+        .sc-green .sc-value { color: #059669; }
+        .sc-red   .sc-value { color: #dc2626; }
+        .sc-blue  .sc-value { color: #2563eb; }
+
+        .filter-bar {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-end;
+        }
+        .filter-bar label { font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; display: block; }
+        .filter-bar select, .filter-bar input {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 7px 12px;
+            font-size: 13px;
+            background: var(--bg);
+            color: var(--text);
+        }
+        .filter-btn {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            background: var(--blue-dark);
+            color: #fff;
+        }
+        .filter-clear { background: var(--border); color: var(--text); text-decoration: none;
+            padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; }
+
+        .att-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        .att-table th {
+            font-size: 11px; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-muted);
+            padding: 10px 14px; background: var(--bg);
+            border-bottom: 2px solid var(--border);
+            white-space: nowrap;
+        }
+        .att-table td {
+            padding: 13px 14px;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+            vertical-align: middle;
+        }
+        .att-table tr:hover td { background: rgba(37,99,235,0.04); }
+        .att-table tbody tr:last-child td { border-bottom: none; }
+
+        .badge-role {
+            display: inline-block; padding: 3px 10px; border-radius: 99px;
+            font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+        }
+        .badge-driver { background: rgba(37,99,235,0.1); color: #1d4ed8; }
+        .badge-conductor { background: rgba(109,40,217,0.1); color: #6d28d9; }
+
+        .status-pill {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 12px; border-radius: 99px;
+            font-size: 12px; font-weight: 700;
+        }
+        .pill-available { background: rgba(5,150,105,0.12); color: #059669; }
+        .pill-offduty   { background: rgba(107,114,128,0.12); color: #6b7280; }
+
+        .table-panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .panel-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .panel-title { font-size: 15px; font-weight: 800; color: var(--blue-dark); }
+        .panel-count { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+        .empty-state {
+            text-align: center; padding: 48px 20px;
+            color: var(--text-muted); font-size: 14px;
+        }
+        .empty-state .es-icon { font-size: 36px; margin-bottom: 12px; }
+        .logout-fixed {
+            position: fixed; bottom: 22px; left: 22px; z-index: 999;
+            background: #fff; border: 1.5px solid #e2e6ef; border-radius: 10px;
+            padding: 10px 18px; font-size: 14px; font-weight: 700; color: #991b1b;
+            text-decoration: none; box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+            transition: background 0.18s, color 0.18s, border-color 0.18s;
+            display: flex; align-items: center; gap: 7px;
+        }
+        .logout-fixed:hover { background: #fee2e2; border-color: #fca5a5; color: #7f1d1d; }
+    </style>
+</head>
+<body>
+
+<header class="top-area">
+    <img src="{% static 'core/logo.jpg' %}" alt="SLTB Logo" class="logo">
+    <nav class="module-nav">
+        <div class="module-buttons">
+            {% for btn in module_buttons %}
+                <a href="{{ btn.url }}" class="module-btn {% if btn.is_active %}active{% endif %}">{{ btn.label }}</a>
+            {% endfor %}
+        </div>
+    </nav>
+</header>
+
+{# ── Fixed logout button ─────────────────────── #}
+<a href="{% url 'logout' %}" class="logout-fixed">🚪 Logout</a>
+
+<main class="dash-wrap">
+    <div class="dash-heading">🕐 Staff Attendance</div>
+    <div class="dash-sub">Real-time clock-in / clock-out status for all Drivers and Conductors</div>
+
+    <!-- Stats -->
+    <div class="stat-grid">
+        <div class="stat-card sc-blue">
+            <div class="sc-label">Total Records</div>
+            <div class="sc-value">{{ total }}</div>
+            <div class="sc-detail">All staff</div>
+        </div>
+        <div class="stat-card sc-green">
+            <div class="sc-label">Currently Available</div>
+            <div class="sc-value">{{ available }}</div>
+            <div class="sc-detail">Clocked in</div>
+        </div>
+        <div class="stat-card sc-red">
+            <div class="sc-label">Off Duty</div>
+            <div class="sc-value">{{ off_duty }}</div>
+            <div class="sc-detail">Clocked out / not started</div>
+        </div>
+        <div class="stat-card">
+            <div class="sc-label">Drivers In</div>
+            <div class="sc-value">{{ drivers_in }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="sc-label">Conductors In</div>
+            <div class="sc-value">{{ conductors_in }}</div>
+        </div>
+    </div>
+
+    <!-- Filter bar -->
+    <form method="get" class="filter-bar">
+        <div>
+            <label>Role</label>
+            <select name="role">
+                <option value="">All Roles</option>
+                <option value="driver" {% if filter_role == 'driver' %}selected{% endif %}>Drivers</option>
+                <option value="conductor" {% if filter_role == 'conductor' %}selected{% endif %}>Conductors</option>
+            </select>
+        </div>
+        <div>
+            <label>Status</label>
+            <select name="status">
+                <option value="">All Statuses</option>
+                <option value="AVAILABLE" {% if filter_status == 'AVAILABLE' %}selected{% endif %}>Available</option>
+                <option value="OFF_DUTY" {% if filter_status == 'OFF_DUTY' %}selected{% endif %}>Off Duty</option>
+            </select>
+        </div>
+        <div>
+            <label>Clock-In Date</label>
+            <input type="date" name="date" value="{{ filter_date }}">
+        </div>
+        <button type="submit" class="filter-btn">Apply Filter</button>
+        <a href="{% url 'attendance_dashboard' %}" class="filter-clear">Clear</a>
+    </form>
+
+    <!-- Table -->
+    <div class="table-panel">
+        <div class="panel-header">
+            <span class="panel-title">Attendance Records</span>
+            <span class="panel-count">{{ total }} record{{ total|pluralize }}</span>
+        </div>
+        {% if attendance_records %}
+        <div style="overflow-x:auto;">
+            <table class="att-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Role</th>
+                        <th>NIC</th>
+                        <th>Status</th>
+                        <th>Clock-In Time</th>
+                        <th>Clock-Out Time</th>
+                        <th>Last Updated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rec in attendance_records %}
+                    <tr>
+                        <td style="font-weight:700;">{{ rec.staff_name }}</td>
+                        <td>
+                            <span class="badge-role {% if rec.staff_type == 'Driver' %}badge-driver{% else %}badge-conductor{% endif %}">
+                                {{ rec.staff_type }}
+                            </span>
+                        </td>
+                        <td style="font-family:monospace;font-size:13px;">
+                            {% if rec.driver %}{{ rec.driver.nic_number }}{% else %}{{ rec.conductor.c_nic_number }}{% endif %}
+                        </td>
+                        <td>
+                            <span class="status-pill {% if rec.status == 'AVAILABLE' %}pill-available{% else %}pill-offduty{% endif %}">
+                                {% if rec.status == 'AVAILABLE' %}🟢{% else %}⚪{% endif %}
+                                {{ rec.get_status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if rec.clock_in_time %}
+                                {{ rec.clock_in_time|date:"d M Y" }}<br>
+                                <span style="font-size:12px;color:var(--text-muted);">{{ rec.clock_in_time|time:"H:i:s" }}</span>
+                            {% else %}
+                                <span style="color:var(--text-muted);">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if rec.clock_out_time %}
+                                {{ rec.clock_out_time|date:"d M Y" }}<br>
+                                <span style="font-size:12px;color:var(--text-muted);">{{ rec.clock_out_time|time:"H:i:s" }}</span>
+                            {% else %}
+                                <span style="color:var(--text-muted);">—</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-size:13px;color:var(--text-muted);">
+                            {{ rec.updated_at|date:"d M Y H:i" }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="es-icon">📋</div>
+            <div>No attendance records found for the selected filters.</div>
+        </div>
+        {% endif %}
+    </div>
+</main>
+
+</body>
+</html>

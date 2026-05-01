@@ -7,6 +7,18 @@
     <title>Driver Module Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'core/bus_dashboard.css' %}">
+
+    <style>
+    .logout-fixed {
+        position: fixed; bottom: 22px; left: 22px; z-index: 999;
+        background: #fff; border: 1.5px solid #e2e6ef; border-radius: 10px;
+        padding: 10px 18px; font-size: 14px; font-weight: 700; color: #991b1b;
+        text-decoration: none; box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+        transition: background 0.18s, color 0.18s, border-color 0.18s;
+        display: flex; align-items: center; gap: 7px;
+    }
+    .logout-fixed:hover { background: #fee2e2; border-color: #fca5a5; color: #7f1d1d; }
+    </style>
 </head>
 <body>
 <header class="top-area">
@@ -19,6 +31,7 @@
         </div>
     </nav>
 </header>
+<div id="page-content">
 
 <main class="dashboard-grid">
     <section class="bus-table-panel shadow-sm">
@@ -80,8 +93,9 @@
         </div>
     </section>
 
-    <aside class="details-panel shadow-sm">
+    <aside class="details-panel shadow-sm" id="detailsPanel">
         <h2 class="panel-title"><strong>Driver Details</strong></h2>
+        <div id="detailsContent">
         {% if selected_driver %}
             <div class="details-animated" id="detailsCard">
                 {% if selected_driver.driver_id_image %}
@@ -104,8 +118,9 @@
                 <a href="{% url 'manage_driver' selected_driver.id %}" class="manage-btn" style="margin-top:12px;display:inline-block;">Manage Driver</a>
             </div>
         {% else %}
-            <p>Select a driver to view details.</p>
+            <p id="detailsPlaceholder">Select a driver to view details.</p>
         {% endif %}
+        </div>
     </aside>
 </main>
 
@@ -118,11 +133,82 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    document.querySelectorAll('.bus-code-link').forEach((link) => {
+(function () {
+    let activeRow = null;
+
+    function renderDriverDetail(d) {
+        const imgHtml = d.image_url
+            ? `<img src="${d.image_url}" alt="${d.driver_name}" class="bus-photo">`
+            : `<div class="bus-photo placeholder">No driver ID image</div>`;
+        return `
+        <div class="details-animated" id="detailsCard">
+            ${imgHtml}
+            <dl>
+                <dt>Driver ID:</dt><dd>${d.id}</dd>
+                <dt>Driver Name:</dt><dd>${d.driver_name}</dd>
+                <dt>NIC:</dt><dd>${d.nic_number}</dd>
+                <dt>License Number:</dt><dd>${d.driving_license_number}</dd>
+                <dt>Date of Birth:</dt><dd>${d.dob}</dd>
+                <dt>Gender:</dt><dd>${d.gender}</dd>
+                <dt>Phone Number:</dt><dd>${d.phone_number}</dd>
+                <dt>Email:</dt><dd>${d.email}</dd>
+                <dt>Address:</dt><dd>${d.driver_address}</dd>
+                <dt>Status:</dt><dd>${d.status}</dd>
+            </dl>
+            <a href="${d.manage_url}" class="manage-btn" style="margin-top:12px;display:inline-block;">Manage Driver</a>
+        </div>`;
+    }
+
+    function selectDriver(driverId, row) {
+        if (activeRow) activeRow.classList.remove('active-row');
+        row.classList.add('active-row');
+        activeRow = row;
+
+        const content = document.getElementById('detailsContent');
+        content.style.opacity = '0.4';
+        content.style.transition = 'opacity 0.15s ease';
+
+        fetch(`/drivers/${driverId}/detail-json/`)
+            .then(r => r.json())
+            .then(d => {
+                content.innerHTML = renderDriverDetail(d);
+                content.style.transition = 'opacity 0.25s ease';
+                content.style.opacity = '1';
+                const url = new URL(window.location);
+                url.searchParams.set('driver', driverId);
+                window.history.replaceState({}, '', url);
+            })
+            .catch(() => { content.style.opacity = '1'; });
+    }
+
+    document.querySelectorAll('.bus-code-link').forEach(link => {
         const row = link.closest('tr');
         link.addEventListener('mouseenter', () => row.classList.add('hover-row'));
         link.addEventListener('mouseleave', () => row.classList.remove('hover-row'));
+
+        link.addEventListener('click', e => {
+            e.preventDefault();
+            const params = new URLSearchParams(link.search);
+            const driverId = params.get('driver');
+            if (driverId) selectDriver(driverId, row);
+        });
+
+        if (row.classList.contains('active-row')) activeRow = row;
     });
+})();
 </script>
+
+{# ── Fixed logout button ───────────────────────── #}
+</div>
+
+<a href="{% url 'logout' %}" class="logout-fixed">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+    </svg>
+    Logout
+</a>
+<script src="{% static 'core/spa-router.js' %}" defer></script>
 </body>
 </html>

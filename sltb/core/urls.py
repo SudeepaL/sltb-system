@@ -3,14 +3,29 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('', views.bus_dashboard, name='bus_dashboard'),
+    path('', views.opening_view, name='opening'),
+    path('login/', views.login_view, name='login'),
+    path('logout/', views.logout_view, name='logout'),
+    path('home/', views.home, name='home'),
+    path('dashboard/', views.role_dashboard, name='role_dashboard'),
+
+    # ── Attendance / Clock-in-out ─────────────────────────────────────────────
+    path('clock/', views.clock_role_select, name='clock_role_select'),
+    path('clock/action/', views.clock_action, name='clock_action'),
+    path('attendance/lookup/', views.clock_lookup_api, name='clock_lookup_api'),
+    path('attendance/', views.attendance_dashboard, name='attendance_dashboard'),
+    path('dashboard/buses/', views.bus_dashboard, name='bus_dashboard'),
     path('drivers/', views.driver_dashboard, name='driver_dashboard'),
     path('conductors/', views.conductor_dashboard, name='conductor_dashboard'),
     path('routes/', views.route_dashboard, name='route_dashboard'),
     path('routes/add/', views.add_route, name='add_route'),
     path('routes/<int:route_id>/stops/', views.manage_route_stops, name='manage_route_stops'),
     path('routes/<int:route_id>/stops/add/', views.add_stop, name='add_stop'),
+    path('routes/<int:route_id>/map-data/', views.route_map_data, name='route_map_data'),
     path('buses/add/', views.add_bus, name='add_bus'),
+    path('buses/<int:bus_id>/detail-json/', views.bus_detail_json, name='bus_detail_json'),
+    path('drivers/<int:driver_id>/detail-json/', views.driver_detail_json, name='driver_detail_json'),
+    path('conductors/<int:conductor_id>/detail-json/', views.conductor_detail_json, name='conductor_detail_json'),
     path('buses/<int:bus_id>/manage/', views.manage_bus, name='manage_bus'),
 
     path('drivers/add/', views.add_driver, name='add_driver'),
@@ -24,6 +39,7 @@ urlpatterns = [
     path('scheduling/outbound-for-return/', views.get_outbound_for_return, name='get_outbound_for_return'),
     path('scheduling/resource-data/', views.get_schedule_resource_data, name='get_schedule_resource_data'),
     path('maintenance/', views.maintenance_dashboard, name='maintenance_dashboard'),
+    path('maintenance/overview/', views.admin_maintenance_overview, name='admin_maintenance_overview'),
     path('maintenance/add/', views.add_maintenance, name='add_maintenance'),
     path('maintenance/bus-mileage/', views.get_bus_mileage, name='get_bus_mileage'),
     path('maintenance/chatbot/', views.maintenance_chatbot, name='maintenance_chatbot'),
@@ -33,6 +49,7 @@ urlpatterns = [
     path('trips/bus/<int:bus_id>/confirmation/', views.driver_conductor_confirmation, name='driver_conductor_confirmation'),
     path('trips/bus/<int:bus_id>/current-schedules/', views.current_schedules, name='current_schedules'),
     path('trips/start/<int:schedule_id>/', views.start_trip, name='start_trip'),
+
     path('fuel/', views.fuel_dashboard, name='fuel_dashboard'),
     path('fuel/refill/', views.fuel_refill, name='fuel_refill'),
     path('fuel/bus/<int:bus_id>/refuel/', views.bus_refuel, name='bus_refuel'),
