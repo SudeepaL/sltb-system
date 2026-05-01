@@ -181,10 +181,12 @@
 
     document.querySelectorAll('.bus-code-link').forEach(link => {
         const row = link.closest('tr');
-        link.addEventListener('mouseenter', () => row.classList.add('hover-row'));
-        link.addEventListener('mouseleave', () => row.classList.remove('hover-row'));
+        row.style.cursor = 'pointer';
+        row.addEventListener('mouseenter', () => row.classList.add('hover-row'));
+        row.addEventListener('mouseleave', () => row.classList.remove('hover-row'));
 
-        link.addEventListener('click', e => {
+        row.addEventListener('click', e => {
+            if (e.target.closest('a') && !e.target.classList.contains('bus-code-link')) return;
             e.preventDefault();
             const params = new URLSearchParams(link.search);
             const conductorId = params.get('conductor');
